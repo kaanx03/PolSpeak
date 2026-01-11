@@ -93,7 +93,7 @@ export default function SettingsPage() {
 
       setSettings(prev => ({
         ...prev,
-        teacherEmail: user.email,
+        teacherEmail: user.email || "",
         teacherPhoto: photoUrl
       }));
 
