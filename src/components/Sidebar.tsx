@@ -167,15 +167,7 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
         </div>
       )}
 
-      {/* Overlay for mobile sidebar */}
-      {isOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/30 z-30"
-          onClick={toggleSidebar}
-        />
-      )}
-
-      {/* Desktop Sidebar (xl and above) */}
+      {/* Desktop Sidebar (xl and above - 1280px+) */}
       <aside
         className={`
           fixed xl:relative
@@ -373,9 +365,9 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
         </div>
       </aside>
 
-      {/* Bottom Navigation - Tablet (md to lg, hide in presentation mode) */}
+      {/* Bottom Navigation - Mobile & Tablet (hide on desktop, hide in presentation mode) */}
       {!isPresentationMode && (
-        <nav className="md:flex xl:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#00132c] border-t border-[#0f2545]/50 hidden">
+        <nav className="flex xl:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#00132c] border-t border-[#0f2545]/50">
           <div className="w-full flex items-center justify-around px-2 py-2 max-w-7xl mx-auto">
             {/* Dashboard */}
             <a
@@ -387,12 +379,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname === "/dashboard" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 dashboard
               </span>
-              <span className="text-[10px] font-medium">Dashboard</span>
+              <span className="text-[10px] font-medium hidden md:block">Dashboard</span>
             </a>
 
             {/* Library */}
@@ -405,12 +397,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname === "/library" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 library_books
               </span>
-              <span className="text-[10px] font-medium">Library</span>
+              <span className="text-[10px] font-medium hidden md:block">Library</span>
             </a>
 
             {/* Students */}
@@ -423,12 +415,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname === "/students" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 groups
               </span>
-              <span className="text-[10px] font-medium">Students</span>
+              <span className="text-[10px] font-medium hidden md:block">Students</span>
             </a>
 
             {/* Lessons */}
@@ -441,12 +433,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname.startsWith("/lessons") ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 book_2
               </span>
-              <span className="text-[10px] font-medium">Lessons</span>
+              <span className="text-[10px] font-medium hidden md:block">Lessons</span>
             </a>
 
             {/* Schedule */}
@@ -459,12 +451,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname === "/schedule" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 calendar_month
               </span>
-              <span className="text-[10px] font-medium">Schedule</span>
+              <span className="text-[10px] font-medium hidden md:block">Schedule</span>
             </a>
 
             {/* Curriculum */}
@@ -477,12 +469,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname === "/curriculum" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 menu_book
               </span>
-              <span className="text-[10px] font-medium">Curriculum</span>
+              <span className="text-[10px] font-medium hidden md:block">Curriculum</span>
             </a>
 
             {/* Presentation */}
@@ -495,12 +487,12 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
             >
               <span
-                className="material-symbols-outlined text-[24px]"
+                className="material-symbols-outlined text-[28px] md:text-[24px]"
                 style={mounted && pathname === "/presentation" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 slideshow
               </span>
-              <span className="text-[10px] font-medium">Present</span>
+              <span className="text-[10px] font-medium hidden md:block">Present</span>
             </a>
           </div>
         </nav>

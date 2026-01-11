@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { LibraryProvider } from "@/contexts/LibraryContext";
@@ -34,6 +34,9 @@ export const metadata: Metadata = {
       { url: "/favicon/apple-icon-180x180.png", sizes: "180x180", type: "image/png" },
     ],
   },
+};
+
+export const viewport: Viewport = {
   themeColor: "#00132c",
 };
 

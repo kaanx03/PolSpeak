@@ -77,3 +77,13 @@ select:focus {
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out;
 }
+
+/* iOS Safe Area Support for Bottom Navigation */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ensure body handles safe areas */
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
