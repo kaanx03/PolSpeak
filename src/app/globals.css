@@ -1,0 +1,79 @@
+@import url("https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  /* Daha derin ve görsele uyumlu modern tonlar */
+  --color-navy-dark: #0f172a;
+  --color-navy-light: #1e293b;
+  --color-brand-accent: #dc2626; /* Polonya Kırmızısı - Vurgu için */
+  --color-brand-blue: #3b82f6;
+  --color-bg-main: #f8fafc;
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+  --color-border-light: rgba(255, 255, 255, 0.2);
+
+  --font-family-display: "Lexend", sans-serif;
+}
+
+body {
+  font-family: var(--font-family-display);
+  background-color: var(--color-bg-main);
+  color: var(--color-text-main);
+}
+
+/* Scrollbar ve Selection ayarların gayet iyi, onları koruyorum */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+::selection {
+  background-color: #3b82f6;
+  color: white;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  display: inline-block;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}

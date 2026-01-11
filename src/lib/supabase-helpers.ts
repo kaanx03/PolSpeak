@@ -1,0 +1,852 @@
+import { supabase } from './supabase';
+
+// ========================================
+// STUDENTS
+// ========================================
+
+export interface Student {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  level: string;
+  status: 'active' | 'paused';
+  group_id?: string;
+  email?: string;
+  phone?: string;
+  parent_name?: string;
+  parent_email?: string;
+  parent_phone?: string;
+  notes?: string;
+  recurring_schedule?: {
+    day: number;
+    startTime: string;
+    endTime: string;
+    duration: number;
+  };
+  homework: Homework[];
+  topics_covered: string[];
+  custom_topics: string[];
+  payments: Payment[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Homework {
+  id: string;
+  date: string;
+  description: string;
+  completed: boolean;
+}
+
+export interface Payment {
+  id: string;
+  date: string;
+  amount: number;
+  currency: string;
+  type: 'lesson' | 'package' | 'trial';
+  status: 'paid' | 'pending' | 'overdue';
+  notes?: string;
+}
+
+// Fetch all students
+export async function fetchStudents() {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching students:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch single student by ID
+export async function fetchStudentById(id: string) {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching student:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Create new student
+export async function createStudent(student: Omit<Student, 'id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await supabase
+    .from('students')
+    .insert([student])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating student:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update student
+export async function updateStudent(id: string, updates: Partial<Student>) {
+  const { data, error } = await supabase
+    .from('students')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating student:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete student
+export async function deleteStudent(id: string) {
+  const { error } = await supabase
+    .from('students')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting student:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// ========================================
+// GROUPS
+// ========================================
+
+export interface Group {
+  id: string;
+  name: string;
+  level: string;
+  color: string;
+  description?: string;
+  recurring_schedule?: {
+    day: number;
+    startTime: string;
+    endTime: string;
+    duration: number;
+  };
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Fetch all groups
+export async function fetchGroups() {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching groups:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch single group by ID
+export async function fetchGroupById(id: string) {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching group:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Create new group
+export async function createGroup(group: Omit<Group, 'id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await supabase
+    .from('groups')
+    .insert([group])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating group:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update group
+export async function updateGroup(id: string, updates: Partial<Group>) {
+  const { data, error } = await supabase
+    .from('groups')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating group:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete group
+export async function deleteGroup(id: string) {
+  const { error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting group:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// ========================================
+// LESSONS (SCHEDULE)
+// ========================================
+
+export interface Lesson {
+  id: string;
+  student_id?: string;
+  group_id?: string;
+  student_name?: string;
+  group_name?: string;
+  group_color?: string;
+  title: string;
+  notes?: string;
+  day: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  duration: number;
+  type: 'regular' | 'trial' | 'makeup';
+  completed: boolean;
+  is_recurring: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Fetch all lessons
+export async function fetchLessons() {
+  const { data, error } = await supabase
+    .from('lessons')
+    .select('*')
+    .order('date', { ascending: true })
+    .order('start_time', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching lessons:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch single lesson by ID
+export async function fetchLessonById(id: string) {
+  const { data, error } = await supabase
+    .from('lessons')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching lesson:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Create new lesson
+export async function createLesson(lesson: Omit<Lesson, 'id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await supabase
+    .from('lessons')
+    .insert([lesson])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating lesson:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update lesson
+export async function updateLesson(id: string, updates: Partial<Lesson>) {
+  const { data, error } = await supabase
+    .from('lessons')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating lesson:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete lesson
+export async function deleteLesson(id: string) {
+  const { error } = await supabase
+    .from('lessons')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting lesson:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// ========================================
+// LESSON HISTORY
+// ========================================
+
+export interface LessonHistory {
+  id: string;
+  student_id?: string;
+  group_id?: string;
+  lesson_id?: string;
+  date: string;
+  topic: string;
+  time?: string;
+  duration: number;
+  notes?: string;
+  created_at?: string;
+}
+
+// Fetch lesson history for a student
+export async function fetchStudentLessonHistory(studentId: string) {
+  const { data, error } = await supabase
+    .from('lesson_history')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching lesson history:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch lesson history for a group
+export async function fetchGroupLessonHistory(groupId: string) {
+  const { data, error } = await supabase
+    .from('lesson_history')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching group lesson history:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Create lesson history entry
+export async function createLessonHistory(history: Omit<LessonHistory, 'id' | 'created_at'>) {
+  const { data, error } = await supabase
+    .from('lesson_history')
+    .insert([history])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating lesson history:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete lesson history entries by lesson_id
+export async function deleteLessonHistoryByLessonId(lessonId: string) {
+  const { error } = await supabase
+    .from('lesson_history')
+    .delete()
+    .eq('lesson_id', lessonId);
+
+  if (error) {
+    console.error('Error deleting lesson history:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// ========================================
+// CURRICULUM TOPICS
+// ========================================
+
+export interface CurriculumTopic {
+  id: string;
+  level: 'a1' | 'a2' | 'b1' | 'b2' | 'c1';
+  category: string;
+  title: string;
+  description: string;
+  order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Fetch all curriculum topics
+export async function fetchCurriculumTopics() {
+  const { data, error } = await supabase
+    .from('curriculum_topics')
+    .select('*')
+    .order('level', { ascending: true })
+    .order('order', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching curriculum topics:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch single curriculum topic by ID
+export async function fetchCurriculumTopicById(id: string) {
+  const { data, error } = await supabase
+    .from('curriculum_topics')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching curriculum topic:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Create new curriculum topic
+export async function createCurriculumTopic(topic: Omit<CurriculumTopic, 'id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await supabase
+    .from('curriculum_topics')
+    .insert([topic])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating curriculum topic:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update curriculum topic
+export async function updateCurriculumTopic(id: string, updates: Partial<CurriculumTopic>) {
+  const { data, error } = await supabase
+    .from('curriculum_topics')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating curriculum topic:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete curriculum topic
+export async function deleteCurriculumTopic(id: string) {
+  const { error } = await supabase
+    .from('curriculum_topics')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting curriculum topic:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// ========================================
+// LESSON CONTENT
+// ========================================
+
+export interface LessonContent {
+  id: string;
+  level: 'a1' | 'a2' | 'b1' | 'b2' | 'c1';
+  title: string;
+  status: 'draft' | 'published';
+  curriculum_topic_id?: string;
+  modules: any[];
+  last_modified?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Fetch all lesson content
+export async function fetchLessonContent() {
+  const { data, error } = await supabase
+    .from('lesson_content')
+    .select('*')
+    .order('level', { ascending: true })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching lesson content:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch lesson content by level
+export async function fetchLessonContentByLevel(level: string) {
+  const { data, error } = await supabase
+    .from('lesson_content')
+    .select('*')
+    .eq('level', level.toLowerCase())
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching lesson content by level:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch single lesson content by ID
+export async function fetchLessonContentById(id: string) {
+  const { data, error } = await supabase
+    .from('lesson_content')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching lesson content:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Create new lesson content
+export async function createLessonContent(lesson: Omit<LessonContent, 'id' | 'created_at' | 'updated_at' | 'last_modified'>) {
+  const { data, error } = await supabase
+    .from('lesson_content')
+    .insert([{ ...lesson, last_modified: new Date().toISOString() }])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating lesson content:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update lesson content
+export async function updateLessonContent(id: string, updates: Partial<LessonContent>) {
+  const { data, error } = await supabase
+    .from('lesson_content')
+    .update({ ...updates, last_modified: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating lesson content:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete lesson content (also deletes all associated files from storage)
+export async function deleteLessonContent(id: string, level: string) {
+  try {
+    // First, get the lesson to know what files to delete
+    const { data: lessonData } = await supabase
+      .from('lesson_content')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    // Delete all files in the lesson's folder from storage
+    if (lessonData) {
+      const folderPath = `lessons/${level}/${id}`;
+
+      try {
+        // List all files in the lesson's folder
+        const { data: fileList, error: listError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .list(folderPath);
+
+        if (!listError && fileList && fileList.length > 0) {
+          // Build full paths for all files in the folder
+          const filePaths = fileList.map(file => `${folderPath}/${file.name}`);
+
+          const { error: removeError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .remove(filePaths);
+
+          if (removeError) {
+            console.error('Error removing files:', removeError);
+          } else {
+            console.log(`Deleted ${filePaths.length} files from storage for lesson ${id}`);
+          }
+        }
+      } catch (storageError) {
+        console.error('Error deleting lesson files from storage:', storageError);
+        // Continue with database deletion even if storage deletion fails
+      }
+    }
+
+    // Delete from database
+    const { error } = await supabase
+      .from('lesson_content')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting lesson content:', error);
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteLessonContent:', error);
+    throw error;
+  }
+}
+
+// ========================================
+// STORAGE (File Upload/Download)
+// ========================================
+
+const STORAGE_BUCKET = 'lesson-files';
+
+// Upload file to Supabase Storage
+export async function uploadFile(file: File, path?: string): Promise<{ url: string; name: string; storagePath: string }> {
+  try {
+    // Generate unique filename with timestamp
+    const timestamp = Date.now();
+    const fileName = `${timestamp}-${file.name}`;
+    const filePath = path ? `${path}/${fileName}` : fileName;
+
+    // Upload file
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(filePath);
+
+    return {
+      url: publicUrl,
+      name: file.name,
+      storagePath: filePath
+    };
+  } catch (error) {
+    console.error('Upload failed:', error);
+    throw error;
+  }
+}
+
+// Delete file from Supabase Storage
+export async function deleteFile(filePath: string) {
+  try {
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([filePath]);
+
+    if (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Delete failed:', error);
+    throw error;
+  }
+}
+
+// Extract file path from Supabase Storage URL
+export function getFilePathFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split(`/${STORAGE_BUCKET}/`);
+    return pathParts[1] || null;
+  } catch {
+    return null;
+  }
+}
+
+// ========================================
+// LIBRARY FILES
+// ========================================
+
+export interface LibraryFile {
+  id: string;
+  name: string;
+  type: 'pdf' | 'image' | 'audio' | 'video' | 'document';
+  category: string;
+  size: number;
+  url: string;
+  storage_path?: string;
+  is_pinned: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Fetch all library files
+export async function fetchLibraryFiles() {
+  const { data, error } = await supabase
+    .from('library_files')
+    .select('*')
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching library files:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Create library file entry
+export async function createLibraryFile(file: Omit<LibraryFile, 'id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await supabase
+    .from('library_files')
+    .insert([file])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating library file:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update library file
+export async function updateLibraryFile(id: string, updates: Partial<LibraryFile>) {
+  const { data, error } = await supabase
+    .from('library_files')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating library file:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete library file (also deletes from storage)
+export async function deleteLibraryFile(id: string) {
+  // First get the file to get storage_path
+  const { data: fileData } = await supabase
+    .from('library_files')
+    .select('storage_path')
+    .eq('id', id)
+    .single();
+
+  // Delete from storage if storage_path exists
+  if (fileData?.storage_path) {
+    try {
+      await deleteFile(fileData.storage_path);
+    } catch (err) {
+      console.error('Error deleting file from storage:', err);
+    }
+  }
+
+  // Delete from database
+  const { error } = await supabase
+    .from('library_files')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting library file:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// Toggle pin status
+export async function toggleLibraryFilePin(id: string, isPinned: boolean) {
+  const { data, error } = await supabase
+    .from('library_files')
+    .update({ is_pinned: isPinned })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error toggling pin:', error);
+    throw error;
+  }
+
+  return data;
+}
