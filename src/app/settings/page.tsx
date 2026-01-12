@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { supabase } from "@/lib/supabase";
 import { processFileForUpload } from "@/lib/image-compression";
-import { getUserSessions, removeUserSession } from "@/lib/sessionTracking";
 
 interface Settings {
   teacherName: string;
@@ -52,10 +51,8 @@ export default function SettingsPage() {
   const [currentFactorId, setCurrentFactorId] = useState<string | null>(null);
   const [showDisable2FAModal, setShowDisable2FAModal] = useState(false);
   const [disableVerificationCode, setDisableVerificationCode] = useState("");
+  const [showSignOutAllModal, setShowSignOutAllModal] = useState(false);
 
-  // Session management states
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [loadingSessions, setLoadingSessions] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -109,46 +106,6 @@ export default function SettingsPage() {
       const totpFactor = mfaData?.totp?.[0];
       const isVerified = totpFactor && totpFactor.status === 'verified';
       setTwoFactorEnabled(isVerified || false);
-
-      // Load active sessions
-      loadSessions();
-    }
-  };
-
-  const loadSessions = async () => {
-    setLoadingSessions(true);
-    try {
-      const sessionsData = await getUserSessions();
-      setSessions(sessionsData);
-    } catch (error) {
-      console.error('Error loading sessions:', error);
-    } finally {
-      setLoadingSessions(false);
-    }
-  };
-
-  const handleRemoveSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to remove this session? The user will be signed out from that device.')) {
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      const success = await removeUserSession(sessionId);
-
-      if (success) {
-        // Reload sessions list
-        await loadSessions();
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 3000);
-      } else {
-        alert('Failed to remove session. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error removing session:', error);
-      alert('Failed to remove session. Please try again.');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -395,10 +352,6 @@ export default function SettingsPage() {
   };
 
   const handleSignOutAllDevices = async () => {
-    if (!confirm('Are you sure you want to sign out from all devices? You will need to log in again on this device.')) {
-      return;
-    }
-
     try {
       setIsSaving(true);
 
@@ -411,9 +364,10 @@ export default function SettingsPage() {
       router.push('/');
     } catch (error: any) {
       console.error('Error signing out from all devices:', error);
-      alert('Failed to sign out from all devices. Please try again.');
+      setPasswordError('Failed to sign out from all devices. Please try again.');
     } finally {
       setIsSaving(false);
+      setShowSignOutAllModal(false);
     }
   };
 
@@ -707,75 +661,11 @@ export default function SettingsPage() {
             <div className="mt-6 bg-white rounded-lg border border-[#e2e8f0] p-6">
               <h3 className="text-lg font-bold text-[#1e293b] mb-2">Session Management</h3>
               <p className="text-sm text-slate-600 mb-6">
-                Manage your active sessions across all devices
+                Sign out from all devices where you are currently logged in
               </p>
 
-              {/* Current Session */}
-              {loadingSessions ? (
-                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-center">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <div className="size-4 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin"></div>
-                    <span className="text-sm">Loading sessions...</span>
-                  </div>
-                </div>
-              ) : sessions.length > 0 ? (
-                <div className="space-y-3">
-                  {sessions.map((session) => {
-                    // Check if this is the current session by comparing user agent
-                    const isCurrentSession = session.user_agent === navigator.userAgent;
-
-                    return (
-                      <div key={session.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex gap-3 flex-1 min-w-0">
-                            <div className={`size-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              isCurrentSession ? 'bg-green-100' : 'bg-blue-100'
-                            }`}>
-                              <span className={`material-symbols-outlined text-xl ${
-                                isCurrentSession ? 'text-green-600' : 'text-blue-600'
-                              }`}>
-                                {session.os === 'Android' || session.os === 'iOS' ? 'phone_iphone' : 'computer'}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="text-sm font-semibold text-slate-900">
-                                  {session.device_name || `${session.os} - ${session.browser}`}
-                                </h4>
-                                {isCurrentSession && (
-                                  <span className="px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded-full whitespace-nowrap">
-                                    This Device
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-slate-600 mt-1">
-                                {session.os} • {session.browser}
-                              </p>
-                              <p className="text-[10px] text-slate-500 mt-1">
-                                Last active: {new Date(session.last_active).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveSession(session.id)}
-                            disabled={isSaving}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center text-sm text-slate-600">
-                  No active sessions found
-                </div>
-              )}
-
               {/* Sign Out All Devices Button */}
-              <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                 <div className="flex items-start justify-between">
                   <div className="flex gap-3">
                     <div className="size-10 rounded-full flex items-center justify-center bg-red-100">
@@ -793,11 +683,11 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <button
-                    onClick={handleSignOutAllDevices}
+                    onClick={() => setShowSignOutAllModal(true)}
                     disabled={isSaving}
                     className="px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
-                    {isSaving ? 'Signing Out...' : 'Sign Out All'}
+                    Sign Out All
                   </button>
                 </div>
               </div>
@@ -936,6 +826,75 @@ export default function SettingsPage() {
                       className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Disable 2FA
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sign Out All Devices Modal */}
+            {showSignOutAllModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+                  {/* Header */}
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="size-12 rounded-full flex items-center justify-center bg-red-100 flex-shrink-0">
+                      <span className="material-symbols-outlined text-2xl text-red-600">
+                        logout
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-slate-900">
+                        Sign Out All Devices?
+                      </h3>
+                      <p className="text-sm text-slate-600 mt-1">
+                        This action will sign you out from all devices
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Warning Message */}
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <div className="flex gap-3">
+                      <span className="material-symbols-outlined text-red-600 text-xl flex-shrink-0">
+                        warning
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-red-900">
+                          You will be signed out from this device too
+                        </p>
+                        <p className="text-xs text-red-700 mt-1">
+                          You will need to log in again on all devices, including this one. Make sure you remember your credentials.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowSignOutAllModal(false)}
+                      disabled={isSaving}
+                      className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSignOutAllDevices}
+                      disabled={isSaving}
+                      className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSaving ? (
+                        <>
+                          <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+                          Signing Out...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[18px]">logout</span>
+                          Sign Out All
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

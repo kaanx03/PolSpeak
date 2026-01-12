@@ -25,22 +25,6 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           return;
         }
 
-        // Check if this session exists and is active in database
-        const { data: dbSession, error } = await supabase
-          .from('user_sessions')
-          .select('id, is_active')
-          .eq('session_token', session.access_token)
-          .eq('is_active', true)
-          .single();
-
-        if (error || !dbSession) {
-          // Session was removed remotely, sign out
-          console.log('Session was terminated remotely');
-          await supabase.auth.signOut();
-          router.push('/');
-          return;
-        }
-
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Auth check error:', error);
