@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from '@/lib/supabase';
+import { trackUserSession } from '@/lib/sessionTracking';
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -61,6 +62,8 @@ export default function LoginPage() {
 
       // No 2FA required, proceed to dashboard
       if (data.session) {
+        // Track this session
+        await trackUserSession(data.session.access_token);
         router.push('/dashboard');
       }
     } catch (err) {
@@ -93,7 +96,7 @@ export default function LoginPage() {
       }
 
       // Verify the code
-      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+      const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
         challengeId: challengeData.id,
         code: twoFactorCode,
@@ -103,6 +106,14 @@ export default function LoginPage() {
         setError('Invalid verification code');
         setLoading(false);
         return;
+      }
+
+      // Get the session after successful 2FA verification
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        // Track this session
+        await trackUserSession(session.access_token);
       }
 
       // Clear the 2FA awaiting flag
