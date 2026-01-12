@@ -18,13 +18,13 @@ function getDeviceInfo(): DeviceInfo {
   else if (ua.includes('Edg')) browser = 'Edge';
   else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'Opera';
 
-  // Detect OS
+  // Detect OS (Android ve iOS önce kontrol edilmeli çünkü bunlar da Linux/Unix bazlı)
   let os = 'Unknown';
-  if (ua.includes('Win')) os = 'Windows';
+  if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('iPhone') || ua.includes('iPad') || ua.includes('iPod')) os = 'iOS';
+  else if (ua.includes('Win')) os = 'Windows';
   else if (ua.includes('Mac')) os = 'macOS';
   else if (ua.includes('Linux')) os = 'Linux';
-  else if (ua.includes('Android')) os = 'Android';
-  else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
 
   // Create device name
   const deviceName = `${os} - ${browser}`;
@@ -37,22 +37,22 @@ function getDeviceInfo(): DeviceInfo {
   };
 }
 
-export async function trackUserSession(sessionToken: string): Promise<void> {
+export async function trackUserSession(): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!user) {
-      console.error('No user found for session tracking');
+    if (!session) {
+      console.error('No session found for session tracking');
       return;
     }
 
     const deviceInfo = getDeviceInfo();
 
-    // Check if this session already exists
+    // Check if this session already exists (using access_token as unique identifier)
     const { data: existingSessions } = await supabase
       .from('user_sessions')
       .select('id')
-      .eq('session_token', sessionToken)
+      .eq('session_token', session.access_token)
       .single();
 
     if (existingSessions) {
@@ -60,14 +60,14 @@ export async function trackUserSession(sessionToken: string): Promise<void> {
       await supabase
         .from('user_sessions')
         .update({ last_active: new Date().toISOString() })
-        .eq('session_token', sessionToken);
+        .eq('session_token', session.access_token);
     } else {
       // Insert new session
       await supabase
         .from('user_sessions')
         .insert({
-          user_id: user.id,
-          session_token: sessionToken,
+          user_id: session.user.id,
+          session_token: session.access_token,
           device_name: deviceInfo.deviceName,
           browser: deviceInfo.browser,
           os: deviceInfo.os,

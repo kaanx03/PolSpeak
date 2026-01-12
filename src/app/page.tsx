@@ -63,7 +63,7 @@ export default function LoginPage() {
       // No 2FA required, proceed to dashboard
       if (data.session) {
         // Track this session
-        await trackUserSession(data.session.access_token);
+        await trackUserSession();
         router.push('/dashboard');
       }
     } catch (err) {
@@ -113,7 +113,7 @@ export default function LoginPage() {
 
       if (session) {
         // Track this session
-        await trackUserSession(session.access_token);
+        await trackUserSession();
       }
 
       // Clear the 2FA awaiting flag
