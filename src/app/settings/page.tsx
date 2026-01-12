@@ -418,7 +418,7 @@ export default function SettingsPage() {
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50/50 pt-14 pb-16 xl:pt-0 xl:pb-0">
+      <main className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50/50 pb-16 md:pb-20 xl:pb-0">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b border-[#e2e8f0]">
           <div className="px-3 md:px-6 py-4 md:py-5">
