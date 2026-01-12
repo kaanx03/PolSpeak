@@ -368,18 +368,18 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
       {/* Bottom Navigation - Mobile & Tablet (hide on desktop, hide in presentation mode) */}
       {!isPresentationMode && (
         <nav className="flex xl:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#00132c] border-t border-[#0f2545]/50">
-          <div className="w-full flex items-center justify-around px-2 py-2 max-w-7xl mx-auto">
+          <div className="w-full flex items-center justify-around px-1 md:px-2 py-2 max-w-7xl mx-auto">
             {/* Dashboard */}
             <a
               href="/dashboard"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname === "/dashboard"
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname === "/dashboard" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 dashboard
@@ -390,14 +390,14 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
             {/* Library */}
             <a
               href="/library"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname === "/library"
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname === "/library" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 library_books
@@ -408,14 +408,14 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
             {/* Students */}
             <a
               href="/students"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname === "/students"
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname === "/students" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 groups
@@ -426,14 +426,14 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
             {/* Lessons */}
             <a
               href="/lessons"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname.startsWith("/lessons")
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname.startsWith("/lessons") ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 book_2
@@ -444,14 +444,14 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
             {/* Schedule */}
             <a
               href="/schedule"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname === "/schedule"
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname === "/schedule" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 calendar_month
@@ -462,14 +462,14 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
             {/* Curriculum */}
             <a
               href="/curriculum"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname === "/curriculum"
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname === "/curriculum" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 menu_book
@@ -480,14 +480,14 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
             {/* Presentation */}
             <a
               href="/presentation"
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px] ${
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
                 mounted && pathname === "/presentation"
                   ? "bg-indigo-500/20 text-indigo-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               <span
-                className="material-symbols-outlined text-[28px] md:text-[24px]"
+                className="material-symbols-outlined text-[24px]"
                 style={mounted && pathname === "/presentation" ? { fontVariationSettings: "'FILL' 1" } : undefined}
               >
                 slideshow
