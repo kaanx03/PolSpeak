@@ -140,7 +140,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 sm:p-10 border border-white/20">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-navy-dark">Welcome Back</h2>
+            <h2 className="text-2xl font-bold text-navy-dark">Welcome Home Golden</h2>
             <p className="text-text-muted text-sm mt-1">
               Sign in to your account
             </p>

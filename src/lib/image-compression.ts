@@ -2,9 +2,9 @@ import imageCompression from 'browser-image-compression';
 
 // File size limits (in bytes)
 export const FILE_SIZE_LIMITS = {
-  image: 500 * 1024,      // 500 KB for images
-  pdf: 5 * 1024 * 1024,   // 5 MB for PDFs
-  audio: 5 * 1024 * 1024, // 5 MB for audio files
+  image: 10 * 1024 * 1024,  // 10 MB for images (will be compressed)
+  pdf: 50 * 1024 * 1024,    // 50 MB for PDFs (no compression - too heavy for browser)
+  audio: 50 * 1024 * 1024,  // 50 MB for audio files
 };
 
 interface CompressionOptions {
@@ -113,7 +113,7 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * Process file before upload: compress if image, validate size
+ * Process file before upload: compress if image or PDF, validate size
  * @param file - Original file
  * @returns Processed file and validation info
  */
@@ -143,8 +143,22 @@ export async function processFileForUpload(file: File): Promise<{
     };
   }
 
-  // Validate non-image files
-  const validation = validateFileSize(file, fileType === 'pdf' ? 'pdf' : 'audio');
+  // Validate PDFs (skip compression - too heavy for browser)
+  if (fileType === 'pdf') {
+    const validation = validateFileSize(file, 'pdf');
+
+    return {
+      processedFile: file,
+      originalSize,
+      compressedSize: file.size,
+      compressionRatio: 0,
+      valid: validation.valid,
+      message: validation.message,
+    };
+  }
+
+  // Validate audio files
+  const validation = validateFileSize(file, 'audio');
 
   return {
     processedFile: file,

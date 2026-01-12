@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -219,6 +219,38 @@ export default function LessonEditorPage() {
   const [actualLessonId, setActualLessonId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Auto-save function - saves immediately after changes
+  const autoSave = async () => {
+    // Skip auto-save for new lessons that haven't been created yet
+    if (isNewLesson) return;
+
+    // Skip if no modules
+    if (modules.length === 0) return;
+
+    try {
+      const lessonData = {
+        title: lessonTitle,
+        modules: modules,
+        level: params.level as any,
+        status: lessonStatus,
+        curriculum_topic_id: curriculumTopicId || undefined,
+      };
+
+      await updateLessonContent(params.id as string, lessonData);
+    } catch (error) {
+      console.error("Auto-save failed:", error);
+    }
+  };
+
+  // Auto-save immediately when modules, title, or curriculum topic changes
+  useEffect(() => {
+    // Skip auto-save for new lessons or initial load
+    if (isNewLesson || modules.length === 0) return;
+
+    // Save immediately
+    autoSave();
+  }, [modules, lessonTitle, curriculumTopicId]);
+
   // Load curriculum topics from Supabase
   useEffect(() => {
     loadCurriculumTopics();
@@ -377,8 +409,8 @@ export default function LessonEditorPage() {
     return { isValid: errors.length === 0, errors };
   };
 
-  // Save to Supabase
-  const saveDraft = async () => {
+  // Create new lesson (only for new lessons)
+  const createLesson = async () => {
     const validation = validateModules();
     if (!validation.isValid) {
       showToast(validation.errors[0], "error");
@@ -396,25 +428,19 @@ export default function LessonEditorPage() {
         title: lessonTitle,
         modules: modules,
         level: params.level as any,
-        status: lessonStatus,
+        status: "draft" as const,
         curriculum_topic_id: curriculumTopicId || undefined,
       };
 
-      if (isNewLesson) {
-        // Create new lesson
-        const created = await createLessonContent(lessonData);
-        setActualLessonId(created.id);
-        setIsNewLesson(false);
-        // Redirect to edit page with new ID
-        router.push(`/lessons/${params.level}/${created.id}/edit`);
-        showToast("Draft created successfully!", "success");
-      } else {
-        // Update existing lesson
-        await updateLessonContent(params.id as string, lessonData);
-        showToast(lessonStatus === "published" ? "Changes saved successfully!" : "Draft saved successfully!", "success");
-      }
+      // Create new lesson
+      const created = await createLessonContent(lessonData);
+      setActualLessonId(created.id);
+      setIsNewLesson(false);
+      // Redirect to edit page with new ID
+      router.push(`/lessons/${params.level}/${created.id}/edit`);
+      showToast("Lesson created successfully!", "success");
     } catch (error: any) {
-      showToast("Failed to save: " + error.message, "error");
+      showToast("Failed to create lesson: " + error.message, "error");
     }
   };
 
@@ -754,9 +780,24 @@ export default function LessonEditorPage() {
     }
   };
 
-  const removeAudioItem = (moduleId: string, itemId: string) => {
+  const removeAudioItem = async (moduleId: string, itemId: string) => {
     const module = modules.find(m => m.id === moduleId);
     if (module && module.content.audioItems) {
+      // Find the item to delete
+      const itemToDelete = module.content.audioItems.find(item => item.id === itemId);
+
+      // Delete from storage if it has a URL
+      if (itemToDelete?.audioUrl) {
+        try {
+          const filePath = getFilePathFromUrl(itemToDelete.audioUrl);
+          if (filePath) {
+            await deleteFile(filePath);
+          }
+        } catch (error) {
+          console.error('Failed to delete audio file from storage:', error);
+        }
+      }
+
       const newItems = module.content.audioItems.filter(item => item.id !== itemId);
       updateModuleContent(moduleId, { audioItems: newItems });
     }
@@ -812,9 +853,24 @@ export default function LessonEditorPage() {
     }
   };
 
-  const removeImageItem = (moduleId: string, itemId: string) => {
+  const removeImageItem = async (moduleId: string, itemId: string) => {
     const module = modules.find(m => m.id === moduleId);
     if (module && module.content.imageItems) {
+      // Find the item to delete
+      const itemToDelete = module.content.imageItems.find(item => item.id === itemId);
+
+      // Delete from storage if it has a URL
+      if (itemToDelete?.imageUrl) {
+        try {
+          const filePath = getFilePathFromUrl(itemToDelete.imageUrl);
+          if (filePath) {
+            await deleteFile(filePath);
+          }
+        } catch (error) {
+          console.error('Failed to delete image file from storage:', error);
+        }
+      }
+
       const newItems = module.content.imageItems.filter(item => item.id !== itemId);
       updateModuleContent(moduleId, { imageItems: newItems });
     }
@@ -894,50 +950,56 @@ export default function LessonEditorPage() {
               </button>
 
               {/* Desktop Buttons */}
-              <button
-                onClick={saveDraft}
-                className="hidden md:block px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-              >
-                {lessonStatus === "published" ? "Save" : "Save Draft"}
-              </button>
-              {lessonStatus === "draft" && (
+              {isNewLesson ? (
                 <button
-                  onClick={publishLesson}
-                  className="hidden md:block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                  onClick={createLesson}
+                  className="hidden md:block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 >
-                  Publish
+                  Create Lesson
                 </button>
-              )}
-              {lessonStatus === "published" && (
-                <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md border border-emerald-200">
-                  <span className="size-1.5 rounded-full bg-emerald-500"></span>
-                  Published
-                </span>
+              ) : (
+                <>
+                  {lessonStatus === "draft" && (
+                    <button
+                      onClick={publishLesson}
+                      className="hidden md:block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                    >
+                      Publish
+                    </button>
+                  )}
+                  {lessonStatus === "published" && (
+                    <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md border border-emerald-200">
+                      <span className="size-1.5 rounded-full bg-emerald-500"></span>
+                      Published
+                    </span>
+                  )}
+                </>
               )}
 
-              {/* Mobile: Save Icon Button */}
-              <button
-                onClick={saveDraft}
-                className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-                title={lessonStatus === "published" ? "Save" : "Save Draft"}
-              >
-                <span className="material-symbols-outlined text-[20px]">save</span>
-              </button>
-
-              {/* Mobile: Publish Icon Button (only for drafts) */}
-              {lessonStatus === "draft" && (
+              {/* Mobile Buttons */}
+              {isNewLesson ? (
                 <button
-                  onClick={publishLesson}
-                  className="md:hidden p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
-                  title="Publish"
+                  onClick={createLesson}
+                  className="md:hidden p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                  title="Create Lesson"
                 >
-                  <span className="material-symbols-outlined text-[20px]">publish</span>
+                  <span className="material-symbols-outlined text-[20px]">add</span>
                 </button>
-              )}
-
-              {/* Mobile: Published indicator */}
-              {lessonStatus === "published" && (
-                <span className="md:hidden size-2 rounded-full bg-emerald-500" title="Published"></span>
+              ) : (
+                <>
+                  {lessonStatus === "draft" && (
+                    <button
+                      onClick={publishLesson}
+                      className="md:hidden p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+                      title="Publish"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">publish</span>
+                    </button>
+                  )}
+                  {lessonStatus === "published" && (
+                    <span className="md:hidden size-2 rounded-full bg-emerald-500" title="Published"></span>
+                  )}
+                </>
               )}
 
               <Link
@@ -1199,7 +1261,20 @@ export default function LessonEditorPage() {
                                 <div className="relative w-40 h-24 border-2 border-purple-200 rounded overflow-hidden group">
                                   <img src={module.content.questionImageUrl} alt="Question" className="w-full h-full object-cover" />
                                   <button
-                                    onClick={() => updateModuleContent(module.id, { questionImageUrl: undefined, questionImageName: undefined })}
+                                    onClick={async () => {
+                                      // Delete from storage first
+                                      if (module.content.questionImageUrl) {
+                                        try {
+                                          const filePath = getFilePathFromUrl(module.content.questionImageUrl);
+                                          if (filePath) {
+                                            await deleteFile(filePath);
+                                          }
+                                        } catch (error) {
+                                          console.error('Failed to delete question image from storage:', error);
+                                        }
+                                      }
+                                      updateModuleContent(module.id, { questionImageUrl: undefined, questionImageName: undefined });
+                                    }}
                                     className="absolute top-1 right-1 px-2 py-0.5 bg-black/60 hover:bg-black/80 text-white text-[10px] font-medium rounded transition-all"
                                   >
                                     Remove
@@ -1243,7 +1318,20 @@ export default function LessonEditorPage() {
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-purple-700 font-medium">{module.content.questionAudioName}</span>
                                     <button
-                                      onClick={() => updateModuleContent(module.id, { questionAudioUrl: undefined, questionAudioName: undefined })}
+                                      onClick={async () => {
+                                        // Delete from storage first
+                                        if (module.content.questionAudioUrl) {
+                                          try {
+                                            const filePath = getFilePathFromUrl(module.content.questionAudioUrl);
+                                            if (filePath) {
+                                              await deleteFile(filePath);
+                                            }
+                                          } catch (error) {
+                                            console.error('Failed to delete question audio from storage:', error);
+                                          }
+                                        }
+                                        updateModuleContent(module.id, { questionAudioUrl: undefined, questionAudioName: undefined });
+                                      }}
                                       className="text-red-500 hover:text-red-700"
                                     >
                                       <span className="material-symbols-outlined text-sm">delete</span>
@@ -1355,7 +1443,18 @@ export default function LessonEditorPage() {
                                         <div className="relative h-16 md:h-20 w-full border-2 border-slate-200 rounded overflow-hidden group">
                                           <img src={pair.rightImage} alt="Match" className="w-full h-full object-cover" />
                                           <button
-                                            onClick={() => {
+                                            onClick={async () => {
+                                              // Delete from storage first
+                                              if (pair.rightImage) {
+                                                try {
+                                                  const filePath = getFilePathFromUrl(pair.rightImage);
+                                                  if (filePath) {
+                                                    await deleteFile(filePath);
+                                                  }
+                                                } catch (error) {
+                                                  console.error('Failed to delete matching pair image from storage:', error);
+                                                }
+                                              }
                                               const newPairs = [...(module.content.pairs || [])];
                                               delete newPairs[i].rightImage;
                                               updateModuleContent(module.id, { pairs: newPairs });
@@ -1585,9 +1684,30 @@ export default function LessonEditorPage() {
                           <>
                             {module.content.pdfUrl ? (
                               <div className="bg-white p-4 rounded border-2 border-red-300">
-                                <div className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-red-600">picture_as_pdf</span>
-                                  <span className="text-sm font-medium">{module.content.pdfName}</span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-red-600">picture_as_pdf</span>
+                                    <span className="text-sm font-medium">{module.content.pdfName}</span>
+                                  </div>
+                                  <button
+                                    onClick={async () => {
+                                      // Delete from storage first
+                                      if (module.content.pdfUrl) {
+                                        try {
+                                          const filePath = getFilePathFromUrl(module.content.pdfUrl);
+                                          if (filePath) {
+                                            await deleteFile(filePath);
+                                          }
+                                        } catch (error) {
+                                          console.error('Failed to delete PDF from storage:', error);
+                                        }
+                                      }
+                                      updateModuleContent(module.id, { pdfUrl: undefined, pdfName: undefined });
+                                    }}
+                                    className="text-red-500 hover:text-red-700"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                  </button>
                                 </div>
                               </div>
                             ) : (
