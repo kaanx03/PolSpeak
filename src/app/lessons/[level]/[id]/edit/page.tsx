@@ -36,7 +36,7 @@ interface ImageItem {
 
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle";
   content: {
     text?: string;
     sentence?: string;
@@ -55,6 +55,11 @@ interface Module {
     pairs?: MatchingPair[];
     wordwallUrl?: string;
     wordwallIframe?: string;
+    miroUrl?: string;
+    quizletUrl?: string;
+    quizletIframe?: string;
+    geniallyUrl?: string;
+    baamboozleUrl?: string;
   };
 }
 
@@ -398,9 +403,32 @@ export default function LessonEditorPage() {
           break;
 
         case "wordwall":
-          if ((!module.content.wordwallUrl || module.content.wordwallUrl.trim() === "") &&
-              (!module.content.wordwallIframe || module.content.wordwallIframe.trim() === "")) {
-            errors.push(`Module ${moduleNum} (Wordwall): Please add either a Wordwall URL or iframe code`);
+          if (!module.content.wordwallIframe || module.content.wordwallIframe.trim() === "") {
+            errors.push(`Module ${moduleNum} (Wordwall): Please add Wordwall iframe code`);
+          }
+          break;
+
+        case "baamboozle":
+          if (!module.content.baamboozleUrl || module.content.baamboozleUrl.trim() === "") {
+            errors.push(`Module ${moduleNum} (Baamboozle): Please add a Baamboozle link`);
+          }
+          break;
+
+        case "quizlet":
+          if (!module.content.quizletIframe || module.content.quizletIframe.trim() === "") {
+            errors.push(`Module ${moduleNum} (Quizlet): Please add Quizlet iframe code`);
+          }
+          break;
+
+        case "genially":
+          if (!module.content.geniallyUrl || module.content.geniallyUrl.trim() === "") {
+            errors.push(`Module ${moduleNum} (Genially): Please add a Genially link`);
+          }
+          break;
+
+        case "miro":
+          if (!module.content.miroUrl || module.content.miroUrl.trim() === "") {
+            errors.push(`Module ${moduleNum} (Miro): Please add a Miro link`);
           }
           break;
       }
@@ -547,6 +575,30 @@ export default function LessonEditorPage() {
       icon: "extension",
       label: "Wordwall Activity",
       color: "bg-orange-100 hover:bg-orange-200 text-orange-700",
+    },
+    {
+      type: "baamboozle",
+      icon: "casino",
+      label: "Baamboozle",
+      color: "bg-pink-100 hover:bg-pink-200 text-pink-700",
+    },
+    {
+      type: "quizlet",
+      icon: "school",
+      label: "Quizlet",
+      color: "bg-indigo-100 hover:bg-indigo-200 text-indigo-700",
+    },
+    {
+      type: "genially",
+      icon: "auto_awesome",
+      label: "Genially",
+      color: "bg-cyan-100 hover:bg-cyan-200 text-cyan-700",
+    },
+    {
+      type: "miro",
+      icon: "dashboard",
+      label: "Miro Board",
+      color: "bg-amber-100 hover:bg-amber-200 text-amber-700",
     },
   ];
 
@@ -1734,29 +1786,105 @@ export default function LessonEditorPage() {
                         {module.type === "wordwall" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Wordwall Link:</label>
-                              <input
-                                type="text"
-                                value={module.content.wordwallUrl || ""}
-                                onChange={(e) => updateModuleContent(module.id, { wordwallUrl: e.target.value })}
-                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                placeholder="https://wordwall.net/resource/1910171"
-                              />
-                              <p className="text-xs text-slate-500">Paste the Wordwall activity link (works automatically)</p>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Or paste iframe code (recommended):</label>
+                              <label className="text-sm font-medium text-slate-700">Wordwall Iframe Code:</label>
                               <textarea
                                 value={module.content.wordwallIframe || ""}
                                 onChange={(e) => updateModuleContent(module.id, { wordwallIframe: e.target.value })}
                                 className="w-full min-h-[80px] bg-white rounded border border-slate-200 px-3 py-2 text-xs font-mono resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 placeholder='<iframe style="max-width:100%" src="https://wordwall.net/embed/..." width="500" height="380" frameborder="0"></iframe>'
                               />
-                              <p className="text-xs text-slate-500">Iframe code includes all settings and works best</p>
+                              <p className="text-xs text-slate-500">Wordwall sayfasından &quot;Share&quot; → &quot;Embed&quot; seçip iframe kodunu buraya yapıştırın</p>
                             </div>
-                            {(module.content.wordwallUrl || module.content.wordwallIframe) && (
+                            {module.content.wordwallIframe && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                                 <p className="text-xs text-green-700 font-medium">✓ Wordwall activity configured</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* BAAMBOOZLE MODULE */}
+                        {module.type === "baamboozle" && (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">Baamboozle Link:</label>
+                              <input
+                                type="text"
+                                value={module.content.baamboozleUrl || ""}
+                                onChange={(e) => updateModuleContent(module.id, { baamboozleUrl: e.target.value })}
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="https://www.baamboozle.com/slideshow/2420286"
+                              />
+                              <p className="text-xs text-slate-500">Paste game or slideshow link from Baamboozle</p>
+                            </div>
+                            {module.content.baamboozleUrl && (
+                              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium">✓ Baamboozle activity configured</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* QUIZLET MODULE */}
+                        {module.type === "quizlet" && (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">Quizlet Iframe Code:</label>
+                              <textarea
+                                value={module.content.quizletIframe || ""}
+                                onChange={(e) => updateModuleContent(module.id, { quizletIframe: e.target.value })}
+                                className="w-full min-h-[80px] bg-white rounded border border-slate-200 px-3 py-2 text-xs font-mono resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder='<iframe src="https://quizlet.com/123456789/flashcards/embed?i=..." height="500" width="100%" style="border:0"></iframe>'
+                              />
+                              <p className="text-xs text-slate-500">Quizlet sayfasından &quot;Share&quot; → &quot;Embed&quot; seçip iframe kodunu buraya yapıştırın</p>
+                            </div>
+                            {module.content.quizletIframe && (
+                              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium">✓ Quizlet set configured</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* GENIALLY MODULE */}
+                        {module.type === "genially" && (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">Genially Link:</label>
+                              <input
+                                type="text"
+                                value={module.content.geniallyUrl || ""}
+                                onChange={(e) => updateModuleContent(module.id, { geniallyUrl: e.target.value })}
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="https://view.genial.ly/..."
+                              />
+                              <p className="text-xs text-slate-500">Paste the Genially view link</p>
+                            </div>
+                            {module.content.geniallyUrl && (
+                              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium">✓ Genially presentation configured</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* MIRO MODULE */}
+                        {module.type === "miro" && (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">Miro Board Link:</label>
+                              <input
+                                type="text"
+                                value={module.content.miroUrl || ""}
+                                onChange={(e) => updateModuleContent(module.id, { miroUrl: e.target.value })}
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="https://miro.com/app/board/..."
+                              />
+                              <p className="text-xs text-slate-500">Paste the Miro board link</p>
+                            </div>
+                            {module.content.miroUrl && (
+                              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium">✓ Miro board configured</p>
                               </div>
                             )}
                           </div>

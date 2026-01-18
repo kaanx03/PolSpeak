@@ -21,7 +21,7 @@ interface ImageItem {
 
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle";
   content: any;
 }
 
@@ -238,6 +238,10 @@ export default function PresentationPage() {
                   {currentModule.type === "audio" && "Audio"}
                   {currentModule.type === "matching" && "Matching Exercise"}
                   {currentModule.type === "wordwall" && "Wordwall Activity"}
+                  {currentModule.type === "baamboozle" && "Baamboozle"}
+                  {currentModule.type === "quizlet" && "Quizlet"}
+                  {currentModule.type === "genially" && "Genially"}
+                  {currentModule.type === "miro" && "Miro Board"}
                 </span>
               </div>
 
@@ -253,7 +257,7 @@ export default function PresentationPage() {
                 )}
 
                 {/* Fill in the Blank Module */}
-                {currentModule.type === "fillblank" && (
+                {currentModule.type === "fillblank" && currentModule.content?.sentence && currentModule.content.sentence.includes("{") && (
                   <div className="relative pb-16">
                     <div className="space-y-6 mb-4">
                       <p className="text-2xl text-slate-800 leading-[3.5rem] mb-8">
@@ -287,7 +291,7 @@ export default function PresentationPage() {
                         {showAnswer ? "Hide Answer" : "Show Answer"}
                       </button>
                     </div>
-                    {showAnswer && (
+                    {showAnswer && currentModule.content?.answers?.length > 0 && (
                       <div className="absolute bottom-0 left-0 inline-block px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
                         <p className="text-emerald-800 text-sm font-semibold whitespace-nowrap">
                           Correct Answer: {currentModule.content.answers.join(", ")}
@@ -540,11 +544,17 @@ export default function PresentationPage() {
                                 ? "max-h-96"
                                 : ""
                             }`}>
-                              <img
-                                src={item.imageUrl}
-                                alt={item.caption || "Image"}
-                                className="w-full h-full object-cover"
-                              />
+                              {item.imageUrl ? (
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.caption || "Image"}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <span className="material-symbols-outlined text-6xl text-slate-400">image</span>
+                                </div>
+                              )}
                             </div>
                             {item.caption && (
                               <p className={`font-semibold text-slate-800 text-center ${
@@ -596,39 +606,92 @@ export default function PresentationPage() {
                 )}
 
                 {/* Wordwall Module */}
-                {currentModule.type === "wordwall" && (
+                {currentModule.type === "wordwall" && currentModule.content?.wordwallIframe && (
                   <div className="flex items-center justify-center w-full">
                     <div className="w-full max-w-3xl h-[600px]">
-                      {currentModule.content.wordwallIframe ? (
-                        <div
-                          className="w-full h-full flex items-center justify-center"
-                          dangerouslySetInnerHTML={{
-                            __html: currentModule.content.wordwallIframe
-                              .replace(/width="[^"]*"/g, 'width="100%"')
-                              .replace(/height="[^"]*"/g, 'height="100%"')
-                              .replace(/style="[^"]*"/g, 'style="width:100%;height:100%"')
-                          }}
-                        />
-                      ) : currentModule.content.wordwallUrl ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <iframe
-                            src={currentModule.content.wordwallUrl.includes('/embed/')
-                              ? currentModule.content.wordwallUrl
-                              : currentModule.content.wordwallUrl.replace('/resource/', '/embed/')}
-                            className="w-full h-full rounded-xl border-0"
-                            allowFullScreen
-                          />
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        dangerouslySetInnerHTML={{
+                          __html: currentModule.content.wordwallIframe
+                            .replace(/width="[^"]*"/g, 'width="100%"')
+                            .replace(/height="[^"]*"/g, 'height="100%"')
+                            .replace(/style="[^"]*"/g, 'style="width:100%;height:100%"')
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Baamboozle Module */}
+                {currentModule.type === "baamboozle" && currentModule.content?.baamboozleUrl && (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="w-full max-w-2xl">
+                      <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+                        <div className="size-20 mx-auto mb-6 bg-pink-100 rounded-full flex items-center justify-center">
+                          <span className="material-symbols-outlined text-4xl text-pink-600">casino</span>
                         </div>
-                      ) : (
-                        <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center">
-                          <div className="text-center">
-                            <span className="material-symbols-outlined text-6xl text-slate-400 mb-4">
-                              widgets
-                            </span>
-                            <p className="text-slate-500">No Wordwall activity added</p>
-                          </div>
-                        </div>
-                      )}
+                        <h3 className="text-2xl font-bold text-slate-800 mb-3">Baamboozle Activity</h3>
+                        <p className="text-slate-600 mb-6">Click the button below to open the activity in a new tab</p>
+                        <a
+                          href={currentModule.content.baamboozleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-8 py-4 bg-pink-600 hover:bg-pink-700 text-white rounded-xl font-semibold text-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined">open_in_new</span>
+                          Open Baamboozle
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quizlet Module */}
+                {currentModule.type === "quizlet" && currentModule.content?.quizletIframe && (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="w-full max-w-3xl h-[600px]">
+                      <div
+                        className="w-full h-full flex items-center justify-center [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:rounded-xl"
+                        dangerouslySetInnerHTML={{
+                          __html: currentModule.content.quizletIframe
+                            .replace(/width="[^"]*"/g, 'width="100%"')
+                            .replace(/height="[^"]*"/g, 'height="100%"')
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Genially Module */}
+                {currentModule.type === "genially" && currentModule.content?.geniallyUrl && (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="w-full max-w-4xl h-[600px]">
+                      <iframe
+                        src={currentModule.content.geniallyUrl}
+                        className="w-full h-full rounded-xl border-0"
+                        allowFullScreen
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Miro Module */}
+                {currentModule.type === "miro" && currentModule.content?.miroUrl && (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="w-full max-w-5xl h-[600px]">
+                      <iframe
+                        src={(() => {
+                          const url = currentModule.content.miroUrl;
+                          // Convert board URL to live-embed format
+                          if (url.includes('/live-embed/')) return url;
+                          if (url.includes('/app/board/')) {
+                            return url.replace('/app/board/', '/app/live-embed/');
+                          }
+                          return url;
+                        })()}
+                        className="w-full h-full rounded-xl border-0"
+                        allowFullScreen
+                      />
                     </div>
                   </div>
                 )}
