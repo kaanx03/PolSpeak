@@ -19,9 +19,15 @@ interface ImageItem {
   caption: string;
 }
 
+interface TrueFalseStatement {
+  id: string;
+  statement: string;
+  isTrue: boolean;
+}
+
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse";
   content: any;
 }
 
@@ -59,6 +65,10 @@ export default function PresentationPage() {
   const [shuffledLeftItems, setShuffledLeftItems] = useState<any[]>([]);
   const [shuffledRightItems, setShuffledRightItems] = useState<any[]>([]);
 
+  // True/False state
+  const [trueFalseAnswers, setTrueFalseAnswers] = useState<{ [statementId: string]: boolean | null }>({});
+  const [showTrueFalseResults, setShowTrueFalseResults] = useState(false);
+
   // Stop audio when changing modules
   useEffect(() => {
     return () => {
@@ -95,6 +105,9 @@ export default function PresentationPage() {
     setMatchedPairs(new Set());
     setShuffledLeftItems([]);
     setShuffledRightItems([]);
+    // Reset true/false
+    setTrueFalseAnswers({});
+    setShowTrueFalseResults(false);
   };
 
   // Shuffle both sides when matching module loads
@@ -233,6 +246,7 @@ export default function PresentationPage() {
                   {currentModule.type === "fillblank" && "Fill in the Blank"}
                   {currentModule.type === "text" && "Text Content"}
                   {currentModule.type === "quiz" && "Quiz"}
+                  {currentModule.type === "truefalse" && "True or False"}
                   {currentModule.type === "image" && "Image"}
                   {currentModule.type === "pdf" && "PDF Document"}
                   {currentModule.type === "audio" && "Audio"}
@@ -384,6 +398,105 @@ export default function PresentationPage() {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* True/False Module */}
+                {currentModule.type === "truefalse" && (
+                  <div className="space-y-6">
+                    {currentModule.content.trueFalseTitle && (
+                      <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">
+                        {currentModule.content.trueFalseTitle}
+                      </h2>
+                    )}
+
+                    <div className="space-y-4">
+                      {currentModule.content.trueFalseStatements?.map((statement: TrueFalseStatement, i: number) => {
+                        const userAnswer = trueFalseAnswers[statement.id];
+                        const isAnswered = userAnswer !== null && userAnswer !== undefined;
+                        const isCorrect = userAnswer === statement.isTrue;
+
+                        return (
+                          <div key={statement.id} className="bg-slate-50 rounded-xl p-6 border-2 border-slate-200">
+                            <p className="text-lg text-slate-800 font-medium text-center mb-4">
+                              {statement.statement}
+                            </p>
+
+                            <div className="flex justify-center gap-4">
+                              <button
+                                onClick={() => {
+                                  setTrueFalseAnswers(prev => ({ ...prev, [statement.id]: true }));
+                                }}
+                                className={`flex items-center gap-2 px-8 py-3 rounded-xl border-2 font-semibold transition-all ${
+                                  showTrueFalseResults && isAnswered
+                                    ? userAnswer === true
+                                      ? isCorrect
+                                        ? "bg-emerald-100 border-emerald-500 text-emerald-700"
+                                        : "bg-red-100 border-red-500 text-red-700"
+                                      : statement.isTrue
+                                        ? "bg-emerald-50 border-emerald-300 text-emerald-600"
+                                        : "bg-slate-100 border-slate-200 text-slate-500"
+                                    : userAnswer === true
+                                      ? "bg-emerald-100 border-emerald-500 text-emerald-700 scale-105"
+                                      : "bg-white border-slate-200 text-slate-600 hover:border-emerald-400 hover:bg-emerald-50"
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-xl">check_circle</span>
+                                True
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setTrueFalseAnswers(prev => ({ ...prev, [statement.id]: false }));
+                                }}
+                                className={`flex items-center gap-2 px-8 py-3 rounded-xl border-2 font-semibold transition-all ${
+                                  showTrueFalseResults && isAnswered
+                                    ? userAnswer === false
+                                      ? isCorrect
+                                        ? "bg-emerald-100 border-emerald-500 text-emerald-700"
+                                        : "bg-red-100 border-red-500 text-red-700"
+                                      : !statement.isTrue
+                                        ? "bg-emerald-50 border-emerald-300 text-emerald-600"
+                                        : "bg-slate-100 border-slate-200 text-slate-500"
+                                    : userAnswer === false
+                                      ? "bg-red-100 border-red-500 text-red-700 scale-105"
+                                      : "bg-white border-slate-200 text-slate-600 hover:border-red-400 hover:bg-red-50"
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-xl">cancel</span>
+                                False
+                              </button>
+                            </div>
+
+                            {/* Show result indicator */}
+                            {showTrueFalseResults && isAnswered && (
+                              <div className={`mt-4 text-center text-sm font-medium ${isCorrect ? "text-emerald-600" : "text-red-600"}`}>
+                                {isCorrect ? "✓ Correct!" : `✗ The answer is ${statement.isTrue ? "True" : "False"}`}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Check Answers Button */}
+                    <div className="flex justify-center mt-6">
+                      <button
+                        onClick={() => setShowTrueFalseResults(!showTrueFalseResults)}
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors"
+                      >
+                        {showTrueFalseResults ? "Hide Results" : "Check Answers"}
+                      </button>
+                    </div>
+
+                    {/* Score display */}
+                    {showTrueFalseResults && currentModule.content.trueFalseStatements && (
+                      <div className="text-center mt-4">
+                        <p className="text-lg font-semibold text-slate-700">
+                          Score: {currentModule.content.trueFalseStatements.filter((s: TrueFalseStatement) => trueFalseAnswers[s.id] === s.isTrue).length} / {currentModule.content.trueFalseStatements.length}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

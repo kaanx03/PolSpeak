@@ -749,8 +749,102 @@ export interface LibraryFile {
   url: string;
   storage_path?: string;
   is_pinned: boolean;
+  folder_id?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+// LIBRARY FOLDERS
+// ========================================
+
+export interface LibraryFolder {
+  id: string;
+  name: string;
+  color: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Fetch all library folders
+export async function fetchLibraryFolders(): Promise<LibraryFolder[]> {
+  const { data, error } = await supabase
+    .from('library_folders')
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching library folders:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Create library folder
+export async function createLibraryFolder(folder: { name: string; color: string }): Promise<LibraryFolder> {
+  const { data, error } = await supabase
+    .from('library_folders')
+    .insert([folder])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating library folder:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update library folder
+export async function updateLibraryFolder(id: string, updates: Partial<LibraryFolder>): Promise<LibraryFolder> {
+  const { data, error } = await supabase
+    .from('library_folders')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating library folder:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete library folder
+export async function deleteLibraryFolder(id: string): Promise<boolean> {
+  // First, remove folder_id from all files in this folder
+  await supabase
+    .from('library_files')
+    .update({ folder_id: null })
+    .eq('folder_id', id);
+
+  const { error } = await supabase
+    .from('library_folders')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting library folder:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// Move file to folder
+export async function moveFileToFolder(fileId: string, folderId: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('library_files')
+    .update({ folder_id: folderId })
+    .eq('id', fileId);
+
+  if (error) {
+    console.error('Error moving file to folder:', error);
+    throw error;
+  }
 }
 
 // Fetch all library files

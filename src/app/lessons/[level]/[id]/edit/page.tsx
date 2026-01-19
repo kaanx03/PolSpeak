@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -34,9 +34,15 @@ interface ImageItem {
   caption: string;
 }
 
+interface TrueFalseStatement {
+  id: string;
+  statement: string;
+  isTrue: boolean;
+}
+
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse";
   content: {
     text?: string;
     sentence?: string;
@@ -60,17 +66,23 @@ interface Module {
     quizletIframe?: string;
     geniallyUrl?: string;
     baamboozleUrl?: string;
+    trueFalseTitle?: string;
+    trueFalseStatements?: TrueFalseStatement[];
   };
 }
 
 // Library Files Panel Component
-function LibraryFilesPanel() {
-  const { files } = useLibrary();
+function LibraryFilesPanel({ onFileSelect }: { onFileSelect?: (file: any) => void }) {
+  const { files, folders } = useLibrary();
   const [filter, setFilter] = useState<"all" | "pdf" | "image" | "audio">("all");
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [longPressFile, setLongPressFile] = useState<any>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const filteredFiles = files.filter((file) => {
-    if (filter === "all") return true;
-    return file.type === filter;
+    const matchesFilter = filter === "all" || file.type === filter;
+    const matchesFolder = selectedFolderId === null ? !file.folderId : file.folderId === selectedFolderId;
+    return matchesFilter && matchesFolder;
   });
 
   const getFileIcon = (type: string) => {
@@ -95,29 +107,84 @@ function LibraryFilesPanel() {
   };
 
   const handleTouchStart = (e: React.TouchEvent, file: any) => {
-    // Store file data in a global for touch drag & drop
-    (window as any).__touchDragFile = file;
+    // Start long press detection for tablet drag
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressFile(file);
+      (window as any).__touchDragFile = file;
+      // Vibrate feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 300);
 
-    // Visual feedback
     const target = e.currentTarget as HTMLElement;
-    target.style.opacity = '0.5';
+    target.dataset.touchStartY = String(e.touches[0].clientY);
+    target.dataset.touchStartX = String(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // Cancel long press if moved too much
+    const target = e.currentTarget as HTMLElement;
+    const startY = parseFloat(target.dataset.touchStartY || "0");
+    const startX = parseFloat(target.dataset.touchStartX || "0");
+    const currentY = e.touches[0].clientY;
+    const currentX = e.touches[0].clientX;
+
+    if (Math.abs(currentY - startY) > 10 || Math.abs(currentX - startX) > 10) {
+      if (longPressTimerRef.current && !longPressFile) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    const target = e.currentTarget as HTMLElement;
-    target.style.opacity = '1';
-
-    // Clean up
-    delete (window as any).__touchDragFile;
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+    setLongPressFile(null);
   };
 
-  const handleFileClick = (file: any) => {
-    // Open file in new tab/preview
-    window.open(file.url, '_blank');
+  // Handle tap to select file (for tablet)
+  const handleFileTap = (file: any) => {
+    if (onFileSelect) {
+      onFileSelect(file);
+    }
   };
+
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Folder tabs */}
+      {folders.length > 0 && (
+        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+          <button
+            onClick={() => setSelectedFolderId(null)}
+            className={`px-2 py-1 text-[10px] rounded flex items-center gap-1 whitespace-nowrap ${
+              selectedFolderId === null
+                ? "bg-slate-700 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">folder</span>
+            All
+          </button>
+          {folders.map((folder) => (
+            <button
+              key={folder.id}
+              onClick={() => setSelectedFolderId(folder.id)}
+              className={`px-2 py-1 text-[10px] rounded flex items-center gap-1 whitespace-nowrap ${
+                selectedFolderId === folder.id
+                  ? "bg-slate-700 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <span className={`size-2 rounded-sm ${folder.color}`}></span>
+              {folder.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Filter buttons */}
       <div className="flex gap-1 flex-wrap">
         <button
@@ -171,35 +238,42 @@ function LibraryFilesPanel() {
         ) : (
           filteredFiles.map((file) => {
             const iconData = getFileIcon(file.type);
+            const isBeingDragged = longPressFile?.id === file.id;
             return (
               <div
                 key={file.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, file)}
                 onTouchStart={(e) => handleTouchStart(e, file)}
+                onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition-all cursor-move group active:opacity-50"
-                title={`Drag to add or click to preview: ${file.name}`}
+                onClick={() => handleFileTap(file)}
+                className={`flex items-center gap-2 p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition-all cursor-move group active:opacity-50 ${isBeingDragged ? "ring-2 ring-indigo-500 bg-indigo-50" : ""}`}
+                title={`Drag to add: ${file.name}`}
               >
-                <span className={`material-symbols-outlined text-[18px] ${iconData.color}`}>
-                  {iconData.icon}
-                </span>
+                {/* Thumbnail for images, icon for others */}
+                {file.type === "image" ? (
+                  <div className="size-8 rounded overflow-hidden flex-shrink-0 bg-slate-200">
+                    <img
+                      src={file.url}
+                      alt={file.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <span className={`material-symbols-outlined text-[18px] ${iconData.color}`}>
+                    {iconData.icon}
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-slate-900 truncate">
                     {file.name}
                   </p>
                   <p className="text-[10px] text-slate-500">{file.category}</p>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleFileClick(file);
-                  }}
-                  className="material-symbols-outlined text-[14px] text-slate-400 group-hover:text-indigo-600 hover:bg-indigo-100 rounded p-1"
-                  title="Preview"
-                >
-                  open_in_new
-                </button>
+                <span className="material-symbols-outlined text-[14px] text-slate-300 group-hover:text-indigo-400">
+                  drag_indicator
+                </span>
               </div>
             );
           })
@@ -223,14 +297,12 @@ export default function LessonEditorPage() {
   const [isNewLesson, setIsNewLesson] = useState(false);
   const [actualLessonId, setActualLessonId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
 
   // Auto-save function - saves immediately after changes
   const autoSave = async () => {
     // Skip auto-save for new lessons that haven't been created yet
     if (isNewLesson) return;
-
-    // Skip if no modules
-    if (modules.length === 0) return;
 
     try {
       const lessonData = {
@@ -249,10 +321,16 @@ export default function LessonEditorPage() {
 
   // Auto-save immediately when modules, title, or curriculum topic changes
   useEffect(() => {
-    // Skip auto-save for new lessons or initial load
-    if (isNewLesson || modules.length === 0) return;
+    // Skip auto-save for new lessons
+    if (isNewLesson) return;
 
-    // Save immediately
+    // Skip auto-save on initial load (before lesson is loaded)
+    if (!actualLessonId) return;
+
+    // Skip auto-save until initial data has been loaded
+    if (!hasInitiallyLoaded) return;
+
+    // Save immediately (even when modules is empty - user may have deleted all modules)
     autoSave();
   }, [modules, lessonTitle, curriculumTopicId]);
 
@@ -278,6 +356,7 @@ export default function LessonEditorPage() {
     if (params.id === 'new') {
       setIsNewLesson(true);
       setActualLessonId(null);
+      setHasInitiallyLoaded(true);
       return;
     }
 
@@ -289,10 +368,13 @@ export default function LessonEditorPage() {
       setCurriculumTopicId(lessonData.curriculum_topic_id || "");
       setIsNewLesson(false);
       setActualLessonId(lessonData.id);
+      // Mark as loaded AFTER setting all data to prevent auto-save on initial load
+      setTimeout(() => setHasInitiallyLoaded(true), 100);
     } else {
       // Lesson not found, treat as new
       setIsNewLesson(true);
       setActualLessonId(null);
+      setHasInitiallyLoaded(true);
     }
   };
 
@@ -547,6 +629,12 @@ export default function LessonEditorPage() {
       color: "bg-purple-100 hover:bg-purple-200 text-purple-700",
     },
     {
+      type: "truefalse",
+      icon: "check_circle",
+      label: "True or False",
+      color: "bg-emerald-100 hover:bg-emerald-200 text-emerald-700",
+    },
+    {
       type: "matching",
       icon: "swap_horiz",
       label: "Matching Exercise",
@@ -614,6 +702,8 @@ export default function LessonEditorPage() {
         ? { audioItems: [] }
         : type === "image"
         ? { imageItems: [] }
+        : type === "truefalse"
+        ? { trueFalseTitle: "Wybierz prawda lub fałsz", trueFalseStatements: [{ id: Date.now().toString(), statement: "", isTrue: true }] }
         : {},
     };
     setModules([...modules, newModule]);
@@ -1132,7 +1222,7 @@ export default function LessonEditorPage() {
                   <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                 </Link>
               </h4>
-              <LibraryFilesPanel />
+              <LibraryFilesPanel onFileSelect={addModuleFromLibrary} />
             </div>
 
             <div className="mt-8 pt-8 border-t border-slate-200">
@@ -1333,35 +1423,66 @@ export default function LessonEditorPage() {
                                   </button>
                                 </div>
                               ) : (
-                                <label className="flex items-center justify-center w-40 h-24 border-2 border-dashed border-purple-300 rounded bg-white cursor-pointer hover:bg-purple-50/50">
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={async (e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        try {
-                                          const lessonId = actualLessonId || params.id as string;
-                                          const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                <div
+                                  className="flex items-center justify-center w-40 h-24 border-2 border-dashed border-purple-300 rounded bg-white cursor-pointer hover:bg-purple-50/50 transition-colors"
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.add("border-purple-500", "bg-purple-100");
+                                  }}
+                                  onDragLeave={(e) => {
+                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
+                                    const fileData = e.dataTransfer.getData("library-file");
+                                    if (fileData) {
+                                      try {
+                                        const file = JSON.parse(fileData);
+                                        if (file.type === "image") {
                                           updateModuleContent(module.id, {
-                                            questionImageUrl: url,
-                                            questionImageName: name
+                                            questionImageUrl: file.url,
+                                            questionImageName: file.name
                                           });
-                                          showToast("Uploaded successfully!", "success");
-                                        } catch (error: any) {
-                                          showToast("Upload failed: " + error.message, "error");
-                                        } finally {
-                                          e.target.value = '';
                                         }
+                                      } catch (err) {
+                                        console.error("Failed to parse dropped file:", err);
                                       }
-                                    }}
-                                    className="hidden"
-                                  />
-                                  <div className="text-center">
-                                    <span className="material-symbols-outlined text-xl text-purple-400">image</span>
-                                    <p className="text-[10px] text-slate-500 mt-0.5">Add image</p>
-                                  </div>
-                                </label>
+                                    }
+                                  }}
+                                >
+                                  <label className="flex items-center justify-center w-full h-full cursor-pointer">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          try {
+                                            const lessonId = actualLessonId || params.id as string;
+                                            const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                            updateModuleContent(module.id, {
+                                              questionImageUrl: url,
+                                              questionImageName: name
+                                            });
+                                            showToast("Uploaded successfully!", "success");
+                                          } catch (error: any) {
+                                            showToast("Upload failed: " + error.message, "error");
+                                          } finally {
+                                            e.target.value = '';
+                                          }
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <div className="text-center">
+                                      <span className="material-symbols-outlined text-xl text-purple-400">image</span>
+                                      <p className="text-[10px] text-slate-500 mt-0.5">Add/Drag image</p>
+                                    </div>
+                                  </label>
+                                </div>
                               )}
 
                               {/* Question Audio */}
@@ -1394,35 +1515,66 @@ export default function LessonEditorPage() {
                                   </audio>
                                 </div>
                               ) : (
-                                <label className="flex-1 flex items-center justify-center h-24 border-2 border-dashed border-purple-300 rounded bg-white cursor-pointer hover:bg-purple-50/50">
-                                  <input
-                                    type="file"
-                                    accept="audio/*"
-                                    onChange={async (e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        try {
-                                          const lessonId = actualLessonId || params.id as string;
-                                          const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                <div
+                                  className="flex-1 flex items-center justify-center h-24 border-2 border-dashed border-purple-300 rounded bg-white cursor-pointer hover:bg-purple-50/50 transition-colors"
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.add("border-purple-500", "bg-purple-100");
+                                  }}
+                                  onDragLeave={(e) => {
+                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
+                                    const fileData = e.dataTransfer.getData("library-file");
+                                    if (fileData) {
+                                      try {
+                                        const file = JSON.parse(fileData);
+                                        if (file.type === "audio") {
                                           updateModuleContent(module.id, {
-                                            questionAudioUrl: url,
-                                            questionAudioName: name
+                                            questionAudioUrl: file.url,
+                                            questionAudioName: file.name
                                           });
-                                          showToast("Uploaded successfully!", "success");
-                                        } catch (error: any) {
-                                          showToast("Upload failed: " + error.message, "error");
-                                        } finally {
-                                          e.target.value = '';
                                         }
+                                      } catch (err) {
+                                        console.error("Failed to parse dropped file:", err);
                                       }
-                                    }}
-                                    className="hidden"
-                                  />
-                                  <div className="text-center">
-                                    <span className="material-symbols-outlined text-xl text-purple-400">volume_up</span>
-                                    <p className="text-[10px] text-slate-500 mt-0.5">Add audio</p>
-                                  </div>
-                                </label>
+                                    }
+                                  }}
+                                >
+                                  <label className="flex items-center justify-center w-full h-full cursor-pointer">
+                                    <input
+                                      type="file"
+                                      accept="audio/*"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          try {
+                                            const lessonId = actualLessonId || params.id as string;
+                                            const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                            updateModuleContent(module.id, {
+                                              questionAudioUrl: url,
+                                              questionAudioName: name
+                                            });
+                                            showToast("Uploaded successfully!", "success");
+                                          } catch (error: any) {
+                                            showToast("Upload failed: " + error.message, "error");
+                                          } finally {
+                                            e.target.value = '';
+                                          }
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <div className="text-center">
+                                      <span className="material-symbols-outlined text-xl text-purple-400">volume_up</span>
+                                      <p className="text-[10px] text-slate-500 mt-0.5">Add/Drag audio</p>
+                                    </div>
+                                  </label>
+                                </div>
                               )}
                             </div>
 
@@ -1517,21 +1669,51 @@ export default function LessonEditorPage() {
                                           </button>
                                         </div>
                                       ) : (
-                                        <label className="flex items-center justify-center h-16 md:h-20 border-2 border-dashed border-slate-300 rounded bg-white cursor-pointer hover:bg-slate-50">
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) handleMatchingImageUpload(module.id, i, file);
-                                            }}
-                                            className="hidden"
-                                          />
-                                          <div className="text-center">
-                                            <span className="material-symbols-outlined text-lg md:text-2xl text-slate-400">image</span>
-                                            <p className="text-[9px] md:text-xs text-slate-500 mt-0.5 md:mt-1">Upload</p>
-                                          </div>
-                                        </label>
+                                        <div
+                                          className="flex items-center justify-center h-16 md:h-20 border-2 border-dashed border-slate-300 rounded bg-white cursor-pointer hover:bg-slate-50 transition-colors"
+                                          onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.currentTarget.classList.add("border-indigo-500", "bg-indigo-50");
+                                          }}
+                                          onDragLeave={(e) => {
+                                            e.currentTarget.classList.remove("border-indigo-500", "bg-indigo-50");
+                                          }}
+                                          onDrop={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.currentTarget.classList.remove("border-indigo-500", "bg-indigo-50");
+                                            const fileData = e.dataTransfer.getData("library-file");
+                                            if (fileData) {
+                                              try {
+                                                const file = JSON.parse(fileData);
+                                                if (file.type === "image") {
+                                                  const newPairs = [...(module.content.pairs || [])];
+                                                  newPairs[i] = { ...newPairs[i], rightImage: file.url };
+                                                  updateModuleContent(module.id, { pairs: newPairs });
+                                                }
+                                              } catch (err) {
+                                                console.error("Failed to parse dropped file:", err);
+                                              }
+                                            }
+                                          }}
+                                        >
+                                          <label className="flex items-center justify-center w-full h-full cursor-pointer">
+                                            <input
+                                              type="file"
+                                              accept="image/*"
+                                              onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) handleMatchingImageUpload(module.id, i, file);
+                                              }}
+                                              className="hidden"
+                                            />
+                                            <div className="text-center">
+                                              <span className="material-symbols-outlined text-lg md:text-2xl text-slate-400">image</span>
+                                              <p className="text-[9px] md:text-xs text-slate-500 mt-0.5 md:mt-1">Upload/Drag</p>
+                                            </div>
+                                          </label>
+                                        </div>
                                       )}
                                     </div>
                                   ) : (
@@ -1563,6 +1745,92 @@ export default function LessonEditorPage() {
                           </div>
                         )}
 
+                        {/* TRUE/FALSE MODULE */}
+                        {module.type === "truefalse" && (
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              value={module.content.trueFalseTitle || ""}
+                              onChange={(e) => updateModuleContent(module.id, { trueFalseTitle: e.target.value })}
+                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                              placeholder="Title (e.g., Choose true or false)"
+                            />
+
+                            <div className="space-y-2">
+                              {module.content.trueFalseStatements?.map((statement, i) => (
+                                <div key={statement.id} className="flex items-center gap-2 bg-white p-3 rounded-lg border border-slate-200">
+                                  <div className="flex-1">
+                                    <input
+                                      type="text"
+                                      value={statement.statement}
+                                      onChange={(e) => {
+                                        const newStatements = [...(module.content.trueFalseStatements || [])];
+                                        newStatements[i] = { ...newStatements[i], statement: e.target.value };
+                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                      }}
+                                      className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                      placeholder="Enter statement..."
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        const newStatements = [...(module.content.trueFalseStatements || [])];
+                                        newStatements[i] = { ...newStatements[i], isTrue: true };
+                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                      }}
+                                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                        statement.isTrue
+                                          ? "bg-emerald-500 text-white"
+                                          : "bg-slate-100 text-slate-600 hover:bg-emerald-100"
+                                      }`}
+                                    >
+                                      True
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const newStatements = [...(module.content.trueFalseStatements || [])];
+                                        newStatements[i] = { ...newStatements[i], isTrue: false };
+                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                      }}
+                                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                        !statement.isTrue
+                                          ? "bg-red-500 text-white"
+                                          : "bg-slate-100 text-slate-600 hover:bg-red-100"
+                                      }`}
+                                    >
+                                      False
+                                    </button>
+                                  </div>
+                                  {module.content.trueFalseStatements && module.content.trueFalseStatements.length > 1 && (
+                                    <button
+                                      onClick={() => {
+                                        const newStatements = module.content.trueFalseStatements?.filter((_, idx) => idx !== i) || [];
+                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                      }}
+                                      className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                    >
+                                      <span className="material-symbols-outlined text-[18px]">close</span>
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newStatements = [
+                                  ...(module.content.trueFalseStatements || []),
+                                  { id: Date.now().toString(), statement: "", isTrue: true }
+                                ];
+                                updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                              }}
+                              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                            >
+                              + Add statement
+                            </button>
+                          </div>
+                        )}
+
                         {/* AUDIO MODULE */}
                         {module.type === "audio" && (
                           <div className="space-y-4">
@@ -1578,9 +1846,46 @@ export default function LessonEditorPage() {
                             </div>
 
                             {(!module.content.audioItems || module.content.audioItems.length === 0) && (
-                              <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200">
+                              <div
+                                className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200 transition-colors hover:border-green-300 hover:bg-green-50/30"
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.classList.add("border-green-500", "bg-green-50");
+                                }}
+                                onDragLeave={(e) => {
+                                  e.currentTarget.classList.remove("border-green-500", "bg-green-50");
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.classList.remove("border-green-500", "bg-green-50");
+                                  const fileData = e.dataTransfer.getData("library-file");
+                                  if (fileData) {
+                                    try {
+                                      const file = JSON.parse(fileData);
+                                      if (file.type === "audio") {
+                                        addAudioItem(module.id);
+                                        setTimeout(() => {
+                                          const audioItems = modules.find(m => m.id === module.id)?.content.audioItems;
+                                          if (audioItems && audioItems.length > 0) {
+                                            const lastItem = audioItems[audioItems.length - 1];
+                                            updateModuleContent(module.id, {
+                                              audioItems: audioItems.map((item: any) =>
+                                                item.id === lastItem.id ? { ...item, audioUrl: file.url, audioName: file.name } : item
+                                              )
+                                            });
+                                          }
+                                        }, 50);
+                                      }
+                                    } catch (err) {
+                                      console.error("Failed to parse dropped file:", err);
+                                    }
+                                  }
+                                }}
+                              >
                                 <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">volume_up</span>
-                                <p className="text-sm text-slate-400">No audio items yet. Click "Add Audio" to start.</p>
+                                <p className="text-sm text-slate-400">No audio items yet. Click &quot;Add Audio&quot; or drag from Library.</p>
                               </div>
                             )}
 
@@ -1630,19 +1935,51 @@ export default function LessonEditorPage() {
                                       </label>
                                     </div>
                                   ) : (
-                                    <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-green-300 rounded-lg cursor-pointer hover:bg-green-50/50">
-                                      <input
-                                        type="file"
-                                        accept="audio/*"
-                                        onChange={(e) => {
-                                          const file = e.target.files?.[0];
-                                          if (file) handleAudioItemUpload(module.id, item.id, file);
-                                        }}
-                                        className="hidden"
-                                      />
-                                      <span className="material-symbols-outlined text-2xl text-green-400 mb-1">volume_up</span>
-                                      <p className="text-xs text-slate-500">Upload audio file</p>
-                                    </label>
+                                    <div
+                                      className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-green-300 rounded-lg cursor-pointer hover:bg-green-50/50 transition-colors"
+                                      onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.currentTarget.classList.add("border-green-500", "bg-green-100");
+                                      }}
+                                      onDragLeave={(e) => {
+                                        e.currentTarget.classList.remove("border-green-500", "bg-green-100");
+                                      }}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.currentTarget.classList.remove("border-green-500", "bg-green-100");
+                                        const fileData = e.dataTransfer.getData("library-file");
+                                        if (fileData) {
+                                          try {
+                                            const file = JSON.parse(fileData);
+                                            if (file.type === "audio") {
+                                              updateModuleContent(module.id, {
+                                                audioItems: module.content.audioItems.map((audioItem: any) =>
+                                                  audioItem.id === item.id ? { ...audioItem, audioUrl: file.url, audioName: file.name } : audioItem
+                                                )
+                                              });
+                                            }
+                                          } catch (err) {
+                                            console.error("Failed to parse dropped file:", err);
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer">
+                                        <input
+                                          type="file"
+                                          accept="audio/*"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleAudioItemUpload(module.id, item.id, file);
+                                          }}
+                                          className="hidden"
+                                        />
+                                        <span className="material-symbols-outlined text-2xl text-green-400 mb-1">volume_up</span>
+                                        <p className="text-xs text-slate-500">Upload or drag audio</p>
+                                      </label>
+                                    </div>
                                   )}
                                 </div>
                               ))}
@@ -1665,9 +2002,47 @@ export default function LessonEditorPage() {
                             </div>
 
                             {(!module.content.imageItems || module.content.imageItems.length === 0) && (
-                              <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200">
+                              <div
+                                className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200 transition-colors hover:border-blue-300 hover:bg-blue-50/30"
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.classList.add("border-blue-500", "bg-blue-50");
+                                }}
+                                onDragLeave={(e) => {
+                                  e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                                  const fileData = e.dataTransfer.getData("library-file");
+                                  if (fileData) {
+                                    try {
+                                      const file = JSON.parse(fileData);
+                                      if (file.type === "image") {
+                                        addImageItem(module.id);
+                                        // Use setTimeout to ensure the image item is added first
+                                        setTimeout(() => {
+                                          const imageItems = modules.find(m => m.id === module.id)?.content.imageItems;
+                                          if (imageItems && imageItems.length > 0) {
+                                            const lastItem = imageItems[imageItems.length - 1];
+                                            updateModuleContent(module.id, {
+                                              imageItems: imageItems.map((item: any) =>
+                                                item.id === lastItem.id ? { ...item, imageUrl: file.url } : item
+                                              )
+                                            });
+                                          }
+                                        }, 50);
+                                      }
+                                    } catch (err) {
+                                      console.error("Failed to parse dropped file:", err);
+                                    }
+                                  }
+                                }}
+                              >
                                 <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">image</span>
-                                <p className="text-sm text-slate-400">No images yet. Click "Add Image" to start.</p>
+                                <p className="text-sm text-slate-400">No images yet. Click "Add Image" or drag from Library.</p>
                               </div>
                             )}
 
@@ -1686,7 +2061,37 @@ export default function LessonEditorPage() {
 
                                   {item.imageUrl ? (
                                     <div className="space-y-2">
-                                      <div className="relative group">
+                                      <div
+                                        className="relative group"
+                                        onDragOver={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          e.currentTarget.classList.add("ring-2", "ring-blue-500");
+                                        }}
+                                        onDragLeave={(e) => {
+                                          e.currentTarget.classList.remove("ring-2", "ring-blue-500");
+                                        }}
+                                        onDrop={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          e.currentTarget.classList.remove("ring-2", "ring-blue-500");
+                                          const fileData = e.dataTransfer.getData("library-file");
+                                          if (fileData) {
+                                            try {
+                                              const file = JSON.parse(fileData);
+                                              if (file.type === "image") {
+                                                updateModuleContent(module.id, {
+                                                  imageItems: module.content.imageItems.map((imgItem: any) =>
+                                                    imgItem.id === item.id ? { ...imgItem, imageUrl: file.url } : imgItem
+                                                  )
+                                                });
+                                              }
+                                            } catch (err) {
+                                              console.error("Failed to parse dropped file:", err);
+                                            }
+                                          }
+                                        }}
+                                      >
                                         <img src={item.imageUrl} alt={item.caption || "Image"} className="w-full rounded-lg" />
                                         <label className="absolute inset-0 bg-black/50 opacity-100 xl:opacity-0 xl:group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
                                           <input
@@ -1703,19 +2108,51 @@ export default function LessonEditorPage() {
                                       </div>
                                     </div>
                                   ) : (
-                                    <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50/50 mb-2">
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                          const file = e.target.files?.[0];
-                                          if (file) handleImageItemUpload(module.id, item.id, file);
-                                        }}
-                                        className="hidden"
-                                      />
-                                      <span className="material-symbols-outlined text-2xl text-blue-400 mb-1">image</span>
-                                      <p className="text-xs text-slate-500">Upload image</p>
-                                    </label>
+                                    <div
+                                      className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50/50 mb-2 transition-colors"
+                                      onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.currentTarget.classList.add("border-blue-500", "bg-blue-100");
+                                      }}
+                                      onDragLeave={(e) => {
+                                        e.currentTarget.classList.remove("border-blue-500", "bg-blue-100");
+                                      }}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.currentTarget.classList.remove("border-blue-500", "bg-blue-100");
+                                        const fileData = e.dataTransfer.getData("library-file");
+                                        if (fileData) {
+                                          try {
+                                            const file = JSON.parse(fileData);
+                                            if (file.type === "image") {
+                                              updateModuleContent(module.id, {
+                                                imageItems: module.content.imageItems.map((imgItem: any) =>
+                                                  imgItem.id === item.id ? { ...imgItem, imageUrl: file.url } : imgItem
+                                                )
+                                              });
+                                            }
+                                          } catch (err) {
+                                            console.error("Failed to parse dropped file:", err);
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer">
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleImageItemUpload(module.id, item.id, file);
+                                          }}
+                                          className="hidden"
+                                        />
+                                        <span className="material-symbols-outlined text-2xl text-blue-400 mb-1">image</span>
+                                        <p className="text-xs text-slate-500">Upload or drag from Library</p>
+                                      </label>
+                                    </div>
                                   )}
 
                                   <input
@@ -1763,21 +2200,52 @@ export default function LessonEditorPage() {
                                 </div>
                               </div>
                             ) : (
-                              <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded-lg bg-white cursor-pointer hover:bg-slate-50">
-                                <input
-                                  type="file"
-                                  accept="application/pdf"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleFileUpload(module.id, "pdf", file);
-                                  }}
-                                  className="hidden"
-                                />
-                                <span className="material-symbols-outlined text-3xl text-red-400 mb-2">
-                                  picture_as_pdf
-                                </span>
-                                <p className="text-sm text-slate-500">Click to upload PDF</p>
-                              </label>
+                              <div
+                                className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 rounded-lg bg-white cursor-pointer hover:bg-slate-50 transition-colors"
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.classList.add("border-red-500", "bg-red-50");
+                                }}
+                                onDragLeave={(e) => {
+                                  e.currentTarget.classList.remove("border-red-500", "bg-red-50");
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.classList.remove("border-red-500", "bg-red-50");
+                                  const fileData = e.dataTransfer.getData("library-file");
+                                  if (fileData) {
+                                    try {
+                                      const file = JSON.parse(fileData);
+                                      if (file.type === "pdf") {
+                                        updateModuleContent(module.id, {
+                                          pdfUrl: file.url,
+                                          pdfName: file.name
+                                        });
+                                      }
+                                    } catch (err) {
+                                      console.error("Failed to parse dropped file:", err);
+                                    }
+                                  }
+                                }}
+                              >
+                                <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleFileUpload(module.id, "pdf", file);
+                                    }}
+                                    className="hidden"
+                                  />
+                                  <span className="material-symbols-outlined text-3xl text-red-400 mb-2">
+                                    picture_as_pdf
+                                  </span>
+                                  <p className="text-sm text-slate-500">Click to upload or drag PDF from Library</p>
+                                </label>
+                              </div>
                             )}
                           </>
                         )}

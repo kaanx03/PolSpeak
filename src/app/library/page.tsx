@@ -2,12 +2,35 @@
 
 import { useState, useRef, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
-import { useLibrary, LibraryFile } from "@/contexts/LibraryContext";
+import { useLibrary, LibraryFile, LibraryFolder } from "@/contexts/LibraryContext";
 import { uploadFile, createLibraryFile } from "@/lib/supabase-helpers";
 import { processFileForUpload } from "@/lib/image-compression";
 
+const FOLDER_COLORS = [
+  { name: "Blue", value: "bg-blue-500" },
+  { name: "Green", value: "bg-green-500" },
+  { name: "Purple", value: "bg-purple-500" },
+  { name: "Orange", value: "bg-orange-500" },
+  { name: "Pink", value: "bg-pink-500" },
+  { name: "Teal", value: "bg-teal-500" },
+  { name: "Red", value: "bg-red-500" },
+  { name: "Yellow", value: "bg-yellow-500" },
+];
+
 export default function LibraryPage() {
-  const { files, addFiles, deleteFile, updateFile, togglePin, refreshFiles } = useLibrary();
+  const {
+    files,
+    folders,
+    addFiles,
+    deleteFile,
+    updateFile,
+    togglePin,
+    refreshFiles,
+    addFolder,
+    editFolder,
+    removeFolder,
+    moveToFolder
+  } = useLibrary();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "pdf" | "image" | "audio" | "document">("all");
@@ -22,6 +45,17 @@ export default function LibraryPage() {
   const [categoryInput, setCategoryInput] = useState("");
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Folder states
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<LibraryFolder | null>(null);
+  const [folderNameInput, setFolderNameInput] = useState("");
+  const [folderColorInput, setFolderColorInput] = useState("bg-blue-500");
+  const [showFolderMenu, setShowFolderMenu] = useState<string | null>(null);
+  const [showDeleteFolderModal, setShowDeleteFolderModal] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<LibraryFolder | null>(null);
+  const [showMoveToFolderMenu, setShowMoveToFolderMenu] = useState<string | null>(null);
 
   // Fix hydration mismatch
   useEffect(() => {
@@ -45,17 +79,15 @@ export default function LibraryPage() {
     return Math.floor(seconds / 604800) + " weeks ago";
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetFolderId?: string | null) => {
     const uploadedFiles = e.target.files;
     if (!uploadedFiles) return;
 
     try {
-      // Upload files to Supabase Storage and create database records
       const filePromises = Array.from(uploadedFiles).map(async (file) => {
         const fileType = getFileType(file.type);
         const fileName = file.name;
 
-        // Process file (compress images, validate size)
         const { processedFile, valid, message } = await processFileForUpload(file);
 
         if (!valid) {
@@ -63,18 +95,17 @@ export default function LibraryPage() {
           throw new Error(message || "File too large");
         }
 
-        // Upload to Supabase Storage - returns url, name, and storagePath
         const { url, storagePath } = await uploadFile(processedFile, "library");
 
-        // Create database record with processed file size
         const libraryFile = await createLibraryFile({
           name: fileName.replace(/\.[^/.]+$/, ""),
           type: fileType,
           category: "Uncategorized",
-          size: processedFile.size, // Use compressed file size
+          size: processedFile.size,
           url: url,
           storage_path: storagePath,
           is_pinned: false,
+          folder_id: targetFolderId || selectedFolderId || null,
         });
 
         return {
@@ -86,13 +117,12 @@ export default function LibraryPage() {
           url: libraryFile.url,
           uploadedAt: new Date(libraryFile.created_at || new Date()),
           isPinned: libraryFile.is_pinned,
+          folderId: libraryFile.folder_id,
         };
       });
 
       const newFiles = await Promise.all(filePromises);
       addFiles(newFiles);
-
-      // Refresh to ensure sync with database
       await refreshFiles();
     } catch (error) {
       console.error("Error uploading files:", error);
@@ -118,12 +148,10 @@ export default function LibraryPage() {
     if (!droppedFiles) return;
 
     try {
-      // Upload files to Supabase Storage and create database records
       const filePromises = Array.from(droppedFiles).map(async (file) => {
         const fileType = getFileType(file.type);
         const fileName = file.name;
 
-        // Process file (compress images, validate size)
         const { processedFile, valid, message } = await processFileForUpload(file);
 
         if (!valid) {
@@ -131,18 +159,17 @@ export default function LibraryPage() {
           throw new Error(message || "File too large");
         }
 
-        // Upload to Supabase Storage - returns url, name, and storagePath
         const { url, storagePath } = await uploadFile(processedFile, "library");
 
-        // Create database record with processed file size
         const libraryFile = await createLibraryFile({
           name: fileName.replace(/\.[^/.]+$/, ""),
           type: fileType,
           category: "Uncategorized",
-          size: processedFile.size, // Use compressed file size
+          size: processedFile.size,
           url: url,
           storage_path: storagePath,
           is_pinned: false,
+          folder_id: selectedFolderId || null,
         });
 
         return {
@@ -154,13 +181,12 @@ export default function LibraryPage() {
           url: libraryFile.url,
           uploadedAt: new Date(libraryFile.created_at || new Date()),
           isPinned: libraryFile.is_pinned,
+          folderId: libraryFile.folder_id,
         };
       });
 
       const newFiles = await Promise.all(filePromises);
       addFiles(newFiles);
-
-      // Refresh to ensure sync with database
       await refreshFiles();
     } catch (error) {
       console.error("Error uploading files:", error);
@@ -214,11 +240,97 @@ export default function LibraryPage() {
     }
   };
 
+  // Folder handlers
+  const handleCreateFolder = () => {
+    setEditingFolder(null);
+    setFolderNameInput("");
+    setFolderColorInput("bg-blue-500");
+    setShowFolderModal(true);
+  };
+
+  const handleEditFolder = (folder: LibraryFolder) => {
+    setEditingFolder(folder);
+    setFolderNameInput(folder.name);
+    setFolderColorInput(folder.color);
+    setShowFolderModal(true);
+    setShowFolderMenu(null);
+  };
+
+  const handleSaveFolder = async () => {
+    if (!folderNameInput.trim()) return;
+
+    try {
+      if (editingFolder) {
+        const newName = folderNameInput.trim();
+        await editFolder(editingFolder.id, {
+          name: newName,
+          color: folderColorInput
+        });
+
+        // Update category of all files in this folder to new folder name
+        const filesInFolder = files.filter(f => f.folderId === editingFolder.id);
+        for (const file of filesInFolder) {
+          await updateFile(file.id, { category: newName });
+        }
+      } else {
+        await addFolder(folderNameInput.trim(), folderColorInput);
+      }
+      setShowFolderModal(false);
+      setEditingFolder(null);
+      setFolderNameInput("");
+      setFolderColorInput("bg-blue-500");
+    } catch (error) {
+      console.error("Error saving folder:", error);
+      alert("Error saving folder. Please try again.");
+    }
+  };
+
+  const handleDeleteFolderClick = (folder: LibraryFolder) => {
+    setFolderToDelete(folder);
+    setShowDeleteFolderModal(true);
+    setShowFolderMenu(null);
+  };
+
+  const handleConfirmDeleteFolder = async () => {
+    if (folderToDelete) {
+      try {
+        await removeFolder(folderToDelete.id);
+        if (selectedFolderId === folderToDelete.id) {
+          setSelectedFolderId(null);
+        }
+        setShowDeleteFolderModal(false);
+        setFolderToDelete(null);
+      } catch (error) {
+        console.error("Error deleting folder:", error);
+        alert("Error deleting folder. Please try again.");
+      }
+    }
+  };
+
+  const handleMoveToFolder = async (fileId: string, folderId: string | null) => {
+    try {
+      await moveToFolder(fileId, folderId);
+
+      // Update category to folder name (or "Uncategorized" if no folder)
+      const folder = folderId ? folders.find(f => f.id === folderId) : null;
+      const newCategory = folder ? folder.name : "Uncategorized";
+      await updateFile(fileId, { category: newCategory });
+
+      setShowMoveToFolderMenu(null);
+      setShowMenu(null);
+    } catch (error) {
+      console.error("Error moving file:", error);
+      alert("Error moving file. Please try again.");
+    }
+  };
+
+  // Filter files based on search, filter, and folder
   const filteredFiles = files.filter((file) => {
     const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       file.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = activeFilter === "all" || file.type === activeFilter;
-    return matchesSearch && matchesFilter;
+    const matchesFolder = selectedFolderId === null ? !file.folderId : file.folderId === selectedFolderId;
+    return matchesSearch && matchesFilter && matchesFolder;
   });
 
   const pinnedFiles = filteredFiles.filter((f) => f.isPinned);
@@ -243,21 +355,22 @@ export default function LibraryPage() {
     const iconData = getFileIcon(file.type);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Close menu when mouse leaves the card
     const handleMouseLeave = () => {
-      // Only close on desktop (not on touch devices)
       if (window.matchMedia("(pointer: fine)").matches) {
         setShowMenu(null);
+        setShowMoveToFolderMenu(null);
       }
     };
 
     return (
       <>
-        {/* Backdrop for mobile/tablet - close menu when clicking outside */}
         {showMenu === file.id && (
           <div
             className="fixed inset-0 z-10 lg:hidden"
-            onClick={() => setShowMenu(null)}
+            onClick={() => {
+              setShowMenu(null);
+              setShowMoveToFolderMenu(null);
+            }}
           />
         )}
 
@@ -265,12 +378,13 @@ export default function LibraryPage() {
           className="group relative flex flex-col bg-white rounded-xl p-4 border border-slate-200 hover:border-indigo-500/30 transition-all hover:shadow-lg"
           onMouseLeave={handleMouseLeave}
         >
-          {/* 3 dot menu - always visible */}
+          {/* 3 dot menu */}
           <div className="absolute top-4 right-4 z-10">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setShowMenu(showMenu === file.id ? null : file.id);
+                setShowMoveToFolderMenu(null);
               }}
               className="size-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 cursor-pointer"
             >
@@ -281,81 +395,122 @@ export default function LibraryPage() {
                 ref={menuRef}
                 className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20"
               >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(file);
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">edit</span>
-                Edit
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTogglePin(file.id);
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {file.isPinned ? "push_pin" : "keep"}
-                </span>
-                {file.isPinned ? "Unpin" : "Pin"}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const a = document.createElement("a");
-                  a.href = file.url;
-                  a.download = file.name;
-                  a.click();
-                  setShowMenu(null);
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">download</span>
-                Download
-              </button>
-              <hr className="my-1" />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteClick(file);
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">delete</span>
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Image/Icon area - clickable */}
-        <div
-          onClick={() => handlePreviewFile(file)}
-          className={`flex items-center justify-center h-32 rounded-lg ${iconData.bg} ${iconData.hover} mb-4 transition-colors overflow-hidden cursor-pointer`}
-        >
-          {file.type === "image" ? (
-            <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
-          ) : (
-            <span className={`material-symbols-outlined text-4xl ${iconData.text}`}>{iconData.icon}</span>
-          )}
-        </div>
-
-        {/* Info area - not clickable */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-start justify-between">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-              {file.category}
-            </span>
-            <span className="text-[10px] text-slate-400">{formatFileSize(file.size)}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(file);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                  Edit
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTogglePin(file.id);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {file.isPinned ? "push_pin" : "keep"}
+                  </span>
+                  {file.isPinned ? "Unpin" : "Pin"}
+                </button>
+                {/* Move to folder */}
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowMoveToFolderMenu(showMoveToFolderMenu === file.id ? null : file.id);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">folder</span>
+                    Move to folder
+                    <span className="material-symbols-outlined text-[14px] ml-auto">chevron_right</span>
+                  </button>
+                  {showMoveToFolderMenu === file.id && (
+                    <div className="absolute left-full top-0 ml-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-30">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveToFolder(file.id, null);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 cursor-pointer ${!file.folderId ? "text-indigo-600 font-medium" : "text-slate-700"}`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">folder_off</span>
+                        No folder
+                      </button>
+                      {folders.map((folder) => (
+                        <button
+                          key={folder.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveToFolder(file.id, folder.id);
+                          }}
+                          className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 cursor-pointer ${file.folderId === folder.id ? "text-indigo-600 font-medium" : "text-slate-700"}`}
+                        >
+                          <span className={`size-4 rounded ${folder.color}`}></span>
+                          {folder.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const a = document.createElement("a");
+                    a.href = file.url;
+                    a.download = file.name;
+                    a.click();
+                    setShowMenu(null);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">download</span>
+                  Download
+                </button>
+                <hr className="my-1" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(file);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
-          <h4 className="text-slate-900 font-semibold text-sm leading-tight line-clamp-2">{file.name}</h4>
-          <p className="text-slate-500 text-xs mt-1">{formatTimeAgo(file.uploadedAt)}</p>
+
+          {/* Image/Icon area */}
+          <div
+            onClick={() => handlePreviewFile(file)}
+            className={`flex items-center justify-center h-32 rounded-lg ${iconData.bg} ${iconData.hover} mb-4 transition-colors overflow-hidden cursor-pointer`}
+          >
+            {file.type === "image" ? (
+              <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+            ) : (
+              <span className={`material-symbols-outlined text-4xl ${iconData.text}`}>{iconData.icon}</span>
+            )}
+          </div>
+
+          {/* Info area */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-start justify-between">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                {file.category}
+              </span>
+              <span className="text-[10px] text-slate-400">{formatFileSize(file.size)}</span>
+            </div>
+            <h4 className="text-slate-900 font-semibold text-sm leading-tight line-clamp-2">{file.name}</h4>
+            <p className="text-slate-500 text-xs mt-1">{formatTimeAgo(file.uploadedAt)}</p>
+          </div>
         </div>
-      </div>
       </>
     );
   };
@@ -368,7 +523,7 @@ export default function LibraryPage() {
         type="file"
         multiple
         accept="image/*,application/pdf,audio/*,video/*,.doc,.docx"
-        onChange={handleFileUpload}
+        onChange={(e) => handleFileUpload(e)}
         className="hidden"
       />
 
@@ -479,6 +634,125 @@ export default function LibraryPage() {
               <span className="text-indigo-600 text-sm font-bold whitespace-nowrap group-hover:underline">Browse Files</span>
             </div>
 
+            {/* Folders Section */}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-900">Folders</h3>
+                <button
+                  onClick={handleCreateFolder}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[18px]">create_new_folder</span>
+                  New Folder
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {/* All Files "folder" */}
+                <button
+                  onClick={() => setSelectedFolderId(null)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+                    selectedFolderId === null
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div className="size-10 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-slate-600">folder</span>
+                  </div>
+                  <div className="text-left min-w-0">
+                    <p className="font-medium text-slate-900 text-sm truncate">All Files</p>
+                    <p className="text-xs text-slate-500">{files.filter(f => !f.folderId).length} items</p>
+                  </div>
+                </button>
+
+                {/* User folders */}
+                {folders.map((folder) => {
+                  const menuButtonId = `folder-menu-btn-${folder.id}`;
+                  return (
+                    <div
+                      key={folder.id}
+                      onClick={() => setSelectedFolderId(folder.id)}
+                      className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all cursor-pointer ${
+                        selectedFolderId === folder.id
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <div className={`size-10 rounded-lg ${folder.color} flex items-center justify-center flex-shrink-0`}>
+                        <span className="material-symbols-outlined text-white">folder</span>
+                      </div>
+                      <div className="text-left min-w-0 flex-1">
+                        <p className="font-medium text-slate-900 text-sm truncate">{folder.name}</p>
+                        <p className="text-xs text-slate-500">{files.filter(f => f.folderId === folder.id).length} items</p>
+                      </div>
+                      {/* Folder menu button */}
+                      <button
+                        id={menuButtonId}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowFolderMenu(showFolderMenu === folder.id ? null : folder.id);
+                        }}
+                        className="size-8 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors flex-shrink-0"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {/* Folder menu dropdown - rendered outside of scroll container */}
+                {showFolderMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowFolderMenu(null)} />
+                    <div
+                      className="fixed z-50 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                      style={{
+                        top: (() => {
+                          const btn = document.getElementById(`folder-menu-btn-${showFolderMenu}`);
+                          if (btn) {
+                            const rect = btn.getBoundingClientRect();
+                            return rect.bottom + 4;
+                          }
+                          return 0;
+                        })(),
+                        left: (() => {
+                          const btn = document.getElementById(`folder-menu-btn-${showFolderMenu}`);
+                          if (btn) {
+                            const rect = btn.getBoundingClientRect();
+                            return rect.right - 160;
+                          }
+                          return 0;
+                        })(),
+                      }}
+                    >
+                      <button
+                        onClick={() => {
+                          const folder = folders.find(f => f.id === showFolderMenu);
+                          if (folder) handleEditFolder(folder);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          const folder = folders.find(f => f.id === showFolderMenu);
+                          if (folder) handleDeleteFolderClick(folder);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
             {/* Section: Pinned Materials */}
             {pinnedFiles.length > 0 && (
               <div className="flex flex-col gap-4">
@@ -486,7 +760,6 @@ export default function LibraryPage() {
                   <h3 className="text-lg font-semibold text-slate-900">Pinned Materials</h3>
                 </div>
 
-                {/* Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {pinnedFiles.map((file) => (
                     <FileCard key={file.id} file={file} />
@@ -499,10 +772,11 @@ export default function LibraryPage() {
             {unpinnedFiles.length > 0 && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-900">All Files</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    {selectedFolderId ? folders.find(f => f.id === selectedFolderId)?.name : "All Files"}
+                  </h3>
                 </div>
 
-                {/* Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {unpinnedFiles.map((file) => (
                     <FileCard key={file.id} file={file} />
@@ -521,6 +795,8 @@ export default function LibraryPage() {
                 <p className="text-slate-500 text-sm">
                   {searchQuery || activeFilter !== "all"
                     ? "Try adjusting your search or filters"
+                    : selectedFolderId
+                    ? "This folder is empty. Upload files or move files here."
                     : "Upload your first file to get started"}
                 </p>
               </div>
@@ -528,6 +804,125 @@ export default function LibraryPage() {
           </div>
         </div>
       </main>
+
+      {/* Create/Edit Folder Modal */}
+      {showFolderModal && (
+        <div
+          onClick={() => setShowFolderModal(false)}
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {editingFolder ? "Edit Folder" : "Create Folder"}
+              </h3>
+              <button
+                onClick={() => setShowFolderModal(false)}
+                className="size-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Folder Name
+                </label>
+                <input
+                  type="text"
+                  value={folderNameInput}
+                  onChange={(e) => setFolderNameInput(e.target.value)}
+                  placeholder="e.g., Lesson 1, Grammar, Vocabulary..."
+                  className="w-full h-10 px-3 rounded-lg border border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Color
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {FOLDER_COLORS.map((color) => (
+                    <button
+                      key={color.value}
+                      onClick={() => setFolderColorInput(color.value)}
+                      className={`size-8 rounded-lg ${color.value} transition-transform ${
+                        folderColorInput === color.value ? "ring-2 ring-offset-2 ring-indigo-500 scale-110" : ""
+                      }`}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setShowFolderModal(false)}
+                  className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveFolder}
+                  disabled={!folderNameInput.trim()}
+                  className="flex-1 h-10 bg-[#00132c] hover:bg-[#0f2545] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {editingFolder ? "Save" : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Folder Confirmation Modal */}
+      {showDeleteFolderModal && folderToDelete && (
+        <div
+          onClick={() => setShowDeleteFolderModal(false)}
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Delete Folder</h3>
+              <button
+                onClick={() => setShowDeleteFolderModal(false)}
+                className="size-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <p className="text-slate-700">
+                Are you sure you want to delete <strong>{folderToDelete.name}</strong>? Files in this folder will be moved to &quot;All Files&quot;.
+              </p>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setShowDeleteFolderModal(false)}
+                  className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDeleteFolder}
+                  className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && editingFile && (
