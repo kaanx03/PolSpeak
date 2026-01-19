@@ -669,12 +669,55 @@ export async function deleteLessonContent(id: string, level: string) {
 
 const STORAGE_BUCKET = 'lesson-files';
 
+// Sanitize filename for Supabase Storage (remove special characters, spaces, etc.)
+function sanitizeFileName(fileName: string): string {
+  // Get file extension
+  const lastDotIndex = fileName.lastIndexOf('.');
+  const extension = lastDotIndex > 0 ? fileName.slice(lastDotIndex) : '';
+  const nameWithoutExt = lastDotIndex > 0 ? fileName.slice(0, lastDotIndex) : fileName;
+
+  // Replace special characters and spaces with safe alternatives
+  const sanitized = nameWithoutExt
+    // Replace Polish and other special characters with ASCII equivalents
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/ł/g, 'l')
+    .replace(/Ł/g, 'L')
+    .replace(/ą/g, 'a')
+    .replace(/ć/g, 'c')
+    .replace(/ę/g, 'e')
+    .replace(/ń/g, 'n')
+    .replace(/ó/g, 'o')
+    .replace(/ś/g, 's')
+    .replace(/ź/g, 'z')
+    .replace(/ż/g, 'z')
+    .replace(/Ą/g, 'A')
+    .replace(/Ć/g, 'C')
+    .replace(/Ę/g, 'E')
+    .replace(/Ń/g, 'N')
+    .replace(/Ó/g, 'O')
+    .replace(/Ś/g, 'S')
+    .replace(/Ź/g, 'Z')
+    .replace(/Ż/g, 'Z')
+    // Replace spaces with underscores
+    .replace(/\s+/g, '_')
+    // Remove any remaining non-alphanumeric characters except underscores and hyphens
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    // Collapse multiple underscores
+    .replace(/_+/g, '_')
+    // Remove leading/trailing underscores
+    .replace(/^_+|_+$/g, '');
+
+  return sanitized + extension.toLowerCase();
+}
+
 // Upload file to Supabase Storage
 export async function uploadFile(file: File, path?: string): Promise<{ url: string; name: string; storagePath: string }> {
   try {
-    // Generate unique filename with timestamp
+    // Generate unique filename with timestamp and sanitized name
     const timestamp = Date.now();
-    const fileName = `${timestamp}-${file.name}`;
+    const sanitizedName = sanitizeFileName(file.name);
+    const fileName = `${timestamp}-${sanitizedName}`;
     const filePath = path ? `${path}/${fileName}` : fileName;
 
     // Upload file
