@@ -647,20 +647,20 @@ export default function LibraryPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
                 {/* All Files "folder" */}
                 <button
                   onClick={() => setSelectedFolderId(null)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+                  className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 transition-all ${
                     selectedFolderId === null
                       ? "border-indigo-500 bg-indigo-50"
                       : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
-                  <div className="size-10 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-slate-600">folder</span>
+                  <div className="size-9 sm:size-10 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-slate-600 text-[20px] sm:text-[24px]">folder</span>
                   </div>
-                  <div className="text-left min-w-0">
+                  <div className="text-left min-w-0 flex-1">
                     <p className="font-medium text-slate-900 text-sm truncate">All Files</p>
                     <p className="text-xs text-slate-500">{files.filter(f => !f.folderId).length} items</p>
                   </div>
@@ -673,16 +673,16 @@ export default function LibraryPage() {
                     <div
                       key={folder.id}
                       onClick={() => setSelectedFolderId(folder.id)}
-                      className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all cursor-pointer ${
+                      className={`relative flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 transition-all cursor-pointer ${
                         selectedFolderId === folder.id
                           ? "border-indigo-500 bg-indigo-50"
                           : "border-slate-200 bg-white hover:border-slate-300"
                       }`}
                     >
-                      <div className={`size-10 rounded-lg ${folder.color} flex items-center justify-center flex-shrink-0`}>
-                        <span className="material-symbols-outlined text-white">folder</span>
+                      <div className={`size-9 sm:size-10 rounded-lg ${folder.color} flex items-center justify-center flex-shrink-0`}>
+                        <span className="material-symbols-outlined text-white text-[20px] sm:text-[24px]">folder</span>
                       </div>
-                      <div className="text-left min-w-0 flex-1">
+                      <div className="text-left min-w-0 flex-1 overflow-hidden">
                         <p className="font-medium text-slate-900 text-sm truncate">{folder.name}</p>
                         <p className="text-xs text-slate-500">{files.filter(f => f.folderId === folder.id).length} items</p>
                       </div>
@@ -694,9 +694,9 @@ export default function LibraryPage() {
                           e.stopPropagation();
                           setShowFolderMenu(showFolderMenu === folder.id ? null : folder.id);
                         }}
-                        className="size-8 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors flex-shrink-0"
+                        className="size-7 sm:size-8 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors flex-shrink-0"
                       >
-                        <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                        <span className="material-symbols-outlined text-[18px] sm:text-[20px]">more_vert</span>
                       </button>
                     </div>
                   );

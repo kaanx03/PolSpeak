@@ -1953,7 +1953,7 @@ export default function LessonEditorPage() {
                                         if (fileData) {
                                           try {
                                             const file = JSON.parse(fileData);
-                                            if (file.type === "audio") {
+                                            if (file.type === "audio" && module.content.audioItems) {
                                               updateModuleContent(module.id, {
                                                 audioItems: module.content.audioItems.map((audioItem: any) =>
                                                   audioItem.id === item.id ? { ...audioItem, audioUrl: file.url, audioName: file.name } : audioItem
@@ -2079,7 +2079,7 @@ export default function LessonEditorPage() {
                                           if (fileData) {
                                             try {
                                               const file = JSON.parse(fileData);
-                                              if (file.type === "image") {
+                                              if (file.type === "image" && module.content.imageItems) {
                                                 updateModuleContent(module.id, {
                                                   imageItems: module.content.imageItems.map((imgItem: any) =>
                                                     imgItem.id === item.id ? { ...imgItem, imageUrl: file.url } : imgItem
@@ -2126,7 +2126,7 @@ export default function LessonEditorPage() {
                                         if (fileData) {
                                           try {
                                             const file = JSON.parse(fileData);
-                                            if (file.type === "image") {
+                                            if (file.type === "image" && module.content.imageItems) {
                                               updateModuleContent(module.id, {
                                                 imageItems: module.content.imageItems.map((imgItem: any) =>
                                                   imgItem.id === item.id ? { ...imgItem, imageUrl: file.url } : imgItem
