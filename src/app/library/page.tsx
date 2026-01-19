@@ -1069,7 +1069,11 @@ export default function LibraryPage() {
                 <img src={selectedFile.url} alt={selectedFile.name} className="w-full h-auto rounded-lg" />
               )}
               {selectedFile.type === "pdf" && (
-                <iframe src={selectedFile.url} className="w-full h-[600px] rounded-lg bg-white" />
+                <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedFile.url)}&embedded=true`}
+                  className="w-full h-[70vh] min-h-[400px] rounded-lg bg-white border-0"
+                  title={selectedFile.name}
+                />
               )}
               {selectedFile.type === "audio" && (
                 <div className="flex flex-col items-center justify-center h-64">
