@@ -3,6 +3,7 @@ import "./globals.css";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { LibraryProvider } from "@/contexts/LibraryContext";
 import AuthGuard from "@/components/AuthGuard";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "NastyKnowledge - Learn Polish with Passion",
@@ -84,6 +85,7 @@ export default function RootLayout({
             <LibraryProvider>{children}</LibraryProvider>
           </ToastProvider>
         </AuthGuard>
+        <SpeedInsights />
       </body>
     </html>
   );
