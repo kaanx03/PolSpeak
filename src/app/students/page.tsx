@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { fetchStudents, fetchGroups, createStudent, createGroup, fetchStudentLessonHistory, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
+import { fetchStudents, fetchGroups, createStudent, createGroup, fetchAllLessonHistory, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
 
 interface Student {
   id: string;
@@ -86,47 +86,47 @@ export default function StudentsPage() {
   }, []);
 
   const loadData = async () => {
-    const [studentsData, groupsData] = await Promise.all([
+    // Fetch all data in parallel with a single query for lesson history (prevents N+1 problem)
+    const [studentsData, groupsData, allLessonHistory] = await Promise.all([
       fetchStudents(),
-      fetchGroups()
+      fetchGroups(),
+      fetchAllLessonHistory()
     ]);
 
-    // Map database fields to frontend fields and load lesson history for each student
-    const mappedStudents = await Promise.all(
-      studentsData.map(async (s: DbStudent) => {
-        // Load lesson history for this student
-        const lessonHistoryData = await fetchStudentLessonHistory(s.id);
+    // Map database fields to frontend fields
+    const mappedStudents = studentsData.map((s: DbStudent) => {
+      // Filter lesson history for this student (client-side filtering instead of N+1 queries)
+      const studentHistory = allLessonHistory.filter((h: any) => h.student_id === s.id);
 
-        return {
-          id: s.id,
-          name: s.name,
-          initials: s.initials,
-          color: s.color,
-          level: s.level,
-          status: s.status,
-          groupId: s.group_id,
-          email: s.email,
-          phone: s.phone,
-          parentName: s.parent_name,
-          parentEmail: s.parent_email,
-          parentPhone: s.parent_phone,
-          notes: s.notes,
-          recurringSchedule: s.recurring_schedule,
-          homework: s.homework || [],
-          topicsCovered: s.topics_covered || [],
-          customTopics: s.custom_topics || [],
-          payments: s.payments || [],
-          lessonHistory: lessonHistoryData.map((h: any) => ({
-            id: h.id,
-            date: h.date,
-            lessonId: h.lesson_id,
-            lessonTitle: h.topic,
-            duration: h.duration,
-            notes: h.notes,
-          })),
-        };
-      })
-    );
+      return {
+        id: s.id,
+        name: s.name,
+        initials: s.initials,
+        color: s.color,
+        level: s.level,
+        status: s.status,
+        groupId: s.group_id,
+        email: s.email,
+        phone: s.phone,
+        parentName: s.parent_name,
+        parentEmail: s.parent_email,
+        parentPhone: s.parent_phone,
+        notes: s.notes,
+        recurringSchedule: s.recurring_schedule,
+        homework: s.homework || [],
+        topicsCovered: s.topics_covered || [],
+        customTopics: s.custom_topics || [],
+        payments: s.payments || [],
+        lessonHistory: studentHistory.map((h: any) => ({
+          id: h.id,
+          date: h.date,
+          lessonId: h.lesson_id,
+          lessonTitle: h.topic,
+          duration: h.duration,
+          notes: h.notes,
+        })),
+      };
+    });
 
     const mappedGroups = groupsData.map((g: DbGroup) => ({
       id: g.id,

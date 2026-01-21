@@ -5,7 +5,8 @@
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Bash(npm install:*)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

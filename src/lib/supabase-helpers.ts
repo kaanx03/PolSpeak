@@ -378,6 +378,21 @@ export async function fetchStudentLessonHistory(studentId: string) {
   return data || [];
 }
 
+// Fetch ALL lesson history in one query (prevents N+1 problem)
+export async function fetchAllLessonHistory() {
+  const { data, error } = await supabase
+    .from('lesson_history')
+    .select('*')
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching all lesson history:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
 // Fetch lesson history for a group
 export async function fetchGroupLessonHistory(groupId: string) {
   const { data, error } = await supabase

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
@@ -126,7 +127,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-lg px-4 sm:px-6">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <img src="/logo.png" alt="NastyKnowledge" className="w-12 h-12 rounded-xl" />
+          <Image src="/logo.png" alt="NastyKnowledge" width={48} height={48} className="w-12 h-12 rounded-xl" priority />
           <div>
             <h1 className="text-white text-2xl font-bold">NastyKnowledge</h1>
             <p className="text-white/70 text-xs">Learn Polish with Passion</p>

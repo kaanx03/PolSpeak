@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
 interface SidebarProps {
@@ -53,7 +54,17 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
   }, []);
 
   const loadUserSettings = async () => {
-    // Try to load profile photo from Supabase first
+    // First check sessionStorage cache to avoid unnecessary Supabase calls
+    const cachedPhotoUrl = sessionStorage.getItem('profile-photo-url');
+    if (cachedPhotoUrl) {
+      setSettings(prev => ({
+        ...prev,
+        teacherPhoto: cachedPhotoUrl
+      }));
+      return;
+    }
+
+    // Try to load profile photo from Supabase
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.id) {
       const { data: files } = await supabase.storage
@@ -71,6 +82,9 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
         photoUrl = publicUrl;
       }
 
+      // Cache the photo URL in sessionStorage
+      sessionStorage.setItem('profile-photo-url', photoUrl);
+
       setSettings(prev => ({
         ...prev,
         teacherPhoto: photoUrl
@@ -81,17 +95,15 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
   // Listen for settings changes
   useEffect(() => {
     const handleStorageChange = async () => {
-      // Reload profile photo from Supabase (don't load from localStorage)
+      // Clear cache and reload profile photo from Supabase
+      sessionStorage.removeItem('profile-photo-url');
       loadUserSettings();
     };
 
-    window.addEventListener("storage", handleStorageChange);
-
-    // Custom event for same-page updates
+    // Only listen for custom event (settings page updates), not generic storage events
     window.addEventListener("settings-updated" as any, handleStorageChange);
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("settings-updated" as any, handleStorageChange);
     };
   }, []);
@@ -182,7 +194,7 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
       >
         <div className="flex flex-col gap-6 p-4">
           <div className="flex items-center gap-3 px-2">
-            <img src="/logo.png" alt="NastyKnowledge" className="size-10 rounded-xl shadow-lg" />
+            <Image src="/logo.png" alt="NastyKnowledge" width={40} height={40} className="size-10 rounded-xl shadow-lg" priority />
             <div className="flex flex-col">
               <h1 className="text-white text-lg font-bold leading-tight tracking-tight">
                 NastyKnowledge

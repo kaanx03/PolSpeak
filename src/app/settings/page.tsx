@@ -166,7 +166,14 @@ export default function SettingsPage() {
         .from('lesson-files')
         .getPublicUrl(filePath);
 
+      // Clear cache so Sidebar reloads the new photo
+      sessionStorage.removeItem('profile-photo-url');
+      sessionStorage.setItem('profile-photo-url', publicUrl);
+
       setSettings({ ...settings, teacherPhoto: publicUrl });
+
+      // Notify other components about the update
+      window.dispatchEvent(new Event('settings-updated'));
     } catch (error: any) {
       setPasswordError("Failed to upload photo: " + error.message);
     }
@@ -195,8 +202,14 @@ export default function SettingsPage() {
           .remove(filesToDelete);
       }
 
-      // Reset to default photo
+      // Reset to default photo and clear cache
+      sessionStorage.removeItem('profile-photo-url');
+      sessionStorage.setItem('profile-photo-url', '/teacher.jpg');
+
       setSettings({ ...settings, teacherPhoto: "/teacher.jpg" });
+
+      // Notify other components about the update
+      window.dispatchEvent(new Event('settings-updated'));
     } catch (error: any) {
       setPasswordError("Failed to remove photo: " + error.message);
     }

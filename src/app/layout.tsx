@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { LibraryProvider } from "@/contexts/LibraryContext";
@@ -49,16 +50,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Fonts */}
+        {/* Fonts - preconnect for faster loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-          rel="stylesheet"
         />
 
         {/* PWA Meta Tags */}
@@ -86,6 +83,19 @@ export default function RootLayout({
           </ToastProvider>
         </AuthGuard>
         <SpeedInsights />
+        {/* Load Material Symbols font after page load - prevents render blocking */}
+        <Script
+          id="google-fonts"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              const link = document.createElement('link');
+              link.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
+              link.rel = 'stylesheet';
+              document.head.appendChild(link);
+            `,
+          }}
+        />
       </body>
     </html>
   );
