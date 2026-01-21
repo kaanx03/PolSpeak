@@ -32,6 +32,7 @@ interface ImageItem {
   imageUrl: string;
   imageName: string;
   caption: string;
+  orientation?: "landscape" | "portrait"; // Yatay veya dik görsel
 }
 
 interface TrueFalseStatement {
@@ -40,11 +41,29 @@ interface TrueFalseStatement {
   isTrue: boolean;
 }
 
+interface ImageChoiceItem {
+  id: string;
+  imageUrl: string;
+  imageName: string;
+  correctOption: string;
+  options: string[];
+}
+
+interface InlineChoiceSentence {
+  id: string;
+  text: string; // Text with {0}, {1}, etc. placeholders for dropdowns
+  blanks: {
+    correctAnswer: string;
+    options: string[];
+  }[];
+}
+
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice";
   content: {
     text?: string;
+    textBgColor?: string; // Background color for text module
     sentence?: string;
     answers?: string[];
     question?: string;
@@ -68,6 +87,10 @@ interface Module {
     baamboozleUrl?: string;
     trueFalseTitle?: string;
     trueFalseStatements?: TrueFalseStatement[];
+    imageChoiceTitle?: string;
+    imageChoiceItems?: ImageChoiceItem[];
+    inlineChoiceTitle?: string;
+    inlineChoiceSentences?: InlineChoiceSentence[];
   };
 }
 
@@ -401,8 +424,8 @@ export default function LessonEditorPage() {
         case "fillblank":
           if (!module.content.sentence || module.content.sentence.trim() === "") {
             errors.push(`Module ${moduleNum} (Fill in the Blank): Sentence cannot be empty`);
-          } else if (!module.content.sentence.includes("{") || !module.content.sentence.includes("}")) {
-            errors.push(`Module ${moduleNum} (Fill in the Blank): Sentence must contain at least one blank using { }`);
+          } else if (!/\d+\./.test(module.content.sentence)) {
+            errors.push(`Module ${moduleNum} (Fill in the Blank): Sentence must contain at least one blank using 1. 2. etc.`);
           }
           if (!module.content.answers || module.content.answers.length === 0) {
             errors.push(`Module ${moduleNum} (Fill in the Blank): Please add at least one answer`);
@@ -653,6 +676,18 @@ export default function LessonEditorPage() {
       color: "bg-blue-100 hover:bg-blue-200 text-blue-700",
     },
     {
+      type: "imagechoice",
+      icon: "imagesmode",
+      label: "Image Choice",
+      color: "bg-sky-100 hover:bg-sky-200 text-sky-700",
+    },
+    {
+      type: "inlinechoice",
+      icon: "list_alt",
+      label: "Inline Choice",
+      color: "bg-violet-100 hover:bg-violet-200 text-violet-700",
+    },
+    {
       type: "pdf",
       icon: "picture_as_pdf",
       label: "PDF Document",
@@ -704,6 +739,10 @@ export default function LessonEditorPage() {
         ? { imageItems: [] }
         : type === "truefalse"
         ? { trueFalseTitle: "Wybierz prawda lub fałsz", trueFalseStatements: [{ id: Date.now().toString(), statement: "", isTrue: true }] }
+        : type === "imagechoice"
+        ? { imageChoiceTitle: "Look at the pictures and choose the correct words", imageChoiceItems: [] }
+        : type === "inlinechoice"
+        ? { inlineChoiceTitle: "Read each sentence and choose the correct word", inlineChoiceSentences: [{ id: Date.now().toString(), text: "", blanks: [{ correctAnswer: "", options: ["", ""] }] }] }
         : {},
     };
     setModules([...modules, newModule]);
@@ -1358,30 +1397,237 @@ export default function LessonEditorPage() {
                       <div className="bg-slate-50 rounded-lg p-3 md:p-4 min-h-[100px]">
                         {/* TEXT MODULE */}
                         {module.type === "text" && (
-                          <textarea
-                            value={module.content.text || ""}
-                            onChange={(e) => updateModuleContent(module.id, { text: e.target.value })}
-                            className="w-full min-h-[100px] bg-white rounded border border-slate-200 p-3 text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            placeholder="Enter your text content here..."
-                          />
+                          <div className="space-y-3">
+                            {/* Toolbar */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Bold Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`text-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.text || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
+                                      updateModuleContent(module.id, { text: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Bold (select text first)"
+                              >
+                                <span className="font-bold text-sm">B</span>
+                              </button>
+
+                              {/* Italic Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`text-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.text || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
+                                      updateModuleContent(module.id, { text: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Italic (select text first)"
+                              >
+                                <span className="italic text-sm">I</span>
+                              </button>
+
+                              {/* Underline Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`text-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.text || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
+                                      updateModuleContent(module.id, { text: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Underline (select text first)"
+                              >
+                                <span className="underline text-sm">U</span>
+                              </button>
+
+                              {/* Divider */}
+                              <div className="w-px h-6 bg-slate-200" />
+
+                              {/* Background Color Picker */}
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-slate-500 mr-1">Background:</span>
+                                {[
+                                  { color: "#ffffff", name: "White" },
+                                  { color: "#f0efed", name: "Gray" },
+                                  { color: "#f5ede9", name: "Brown" },
+                                  { color: "#f0cdb1", name: "Orange" },
+                                  { color: "#f9f3dc", name: "Yellow" },
+                                  { color: "#e8f1ec", name: "Green" },
+                                  { color: "#e5f2fc", name: "Blue" },
+                                  { color: "#f3ebf9", name: "Purple" },
+                                  { color: "#fae9f1", name: "Pink" },
+                                  { color: "#fce9e7", name: "Red" },
+                                ].map((bg) => (
+                                  <button
+                                    key={bg.color}
+                                    type="button"
+                                    onClick={() => updateModuleContent(module.id, { textBgColor: bg.color })}
+                                    className={`size-6 rounded border-2 transition-all ${
+                                      (module.content.textBgColor || "#ffffff") === bg.color
+                                        ? "border-indigo-500 scale-110"
+                                        : "border-slate-200 hover:border-slate-300"
+                                    }`}
+                                    style={{ backgroundColor: bg.color }}
+                                    title={bg.name}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Textarea with background color preview */}
+                            <textarea
+                              id={`text-textarea-${module.id}`}
+                              value={module.content.text || ""}
+                              onChange={(e) => updateModuleContent(module.id, { text: e.target.value })}
+                              className="w-full min-h-[100px] rounded border border-slate-200 p-3 text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                              style={{ backgroundColor: module.content.textBgColor || "#ffffff" }}
+                              placeholder="Enter your text content here... Use **text** for bold."
+                            />
+                          </div>
                         )}
 
                         {/* FILL IN THE BLANK MODULE */}
                         {module.type === "fillblank" && (
                           <div className="space-y-3">
-                            <input
-                              type="text"
+                            {/* Toolbar */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Add Blank Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const text = module.content.sentence || "";
+                                    // Count existing blanks to determine next number
+                                    const matches = text.match(/\d+\./g) || [];
+                                    const nextNum = matches.length + 1;
+                                    const newText = text.substring(0, start) + `${nextNum}.` + text.substring(start);
+                                    updateModuleContent(module.id, { sentence: newText });
+                                    // Focus back and set cursor position
+                                    setTimeout(() => {
+                                      textarea.focus();
+                                      const newPos = start + `${nextNum}.`.length;
+                                      textarea.setSelectionRange(newPos, newPos);
+                                    }, 0);
+                                  }
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100 transition-colors text-sm"
+                                title="Add blank (1., 2., etc.)"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">add</span>
+                                <span className="text-xs font-medium">Blank</span>
+                              </button>
+
+                              <div className="w-px h-6 bg-slate-200" />
+
+                              {/* Bold Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.sentence || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
+                                      updateModuleContent(module.id, { sentence: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Bold (select text first)"
+                              >
+                                <span className="font-bold text-sm">B</span>
+                              </button>
+
+                              {/* Italic Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.sentence || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
+                                      updateModuleContent(module.id, { sentence: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Italic (select text first)"
+                              >
+                                <span className="italic text-sm">I</span>
+                              </button>
+
+                              {/* Underline Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.sentence || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
+                                      updateModuleContent(module.id, { sentence: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Underline (select text first)"
+                              >
+                                <span className="underline text-sm">U</span>
+                              </button>
+                            </div>
+
+                            <textarea
+                              id={`fillblank-textarea-${module.id}`}
+                              rows={4}
                               value={module.content.sentence || ""}
                               onChange={(e) => updateModuleContent(module.id, { sentence: e.target.value })}
-                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                              placeholder="Enter sentence with {blank} markers for fill-in-the-blank..."
+                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                              placeholder="Enter sentence with 1. 2. for blanks. E.g.: The cat 1. on the 2."
                             />
                             <input
                               type="text"
                               value={module.content.answers?.join(", ") || ""}
                               onChange={(e) => updateModuleContent(module.id, { answers: e.target.value.split(",").map(s => s.trim()) })}
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                              placeholder="Correct answers (comma separated)"
+                              placeholder="Correct answers in order (comma separated). E.g.: sat, mat"
                             />
                           </div>
                         )}
@@ -1389,11 +1635,81 @@ export default function LessonEditorPage() {
                         {/* QUIZ MODULE */}
                         {module.type === "quiz" && (
                           <div className="space-y-3">
-                            <input
-                              type="text"
+                            {/* Toolbar */}
+                            <div className="flex items-center gap-2">
+                              {/* Bold Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`quiz-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.question || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
+                                      updateModuleContent(module.id, { question: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Bold (select text first)"
+                              >
+                                <span className="font-bold text-sm">B</span>
+                              </button>
+
+                              {/* Italic Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`quiz-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.question || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
+                                      updateModuleContent(module.id, { question: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Italic (select text first)"
+                              >
+                                <span className="italic text-sm">I</span>
+                              </button>
+
+                              {/* Underline Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const textarea = document.getElementById(`quiz-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const text = module.content.question || "";
+                                    const selectedText = text.substring(start, end);
+                                    if (selectedText) {
+                                      const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
+                                      updateModuleContent(module.id, { question: newText });
+                                    }
+                                  }
+                                }}
+                                className="flex items-center justify-center size-8 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Underline (select text first)"
+                              >
+                                <span className="underline text-sm">U</span>
+                              </button>
+                            </div>
+
+                            <textarea
+                              id={`quiz-textarea-${module.id}`}
+                              rows={2}
                               value={module.content.question || ""}
                               onChange={(e) => updateModuleContent(module.id, { question: e.target.value })}
-                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                               placeholder="Quiz question..."
                             />
 
@@ -1758,61 +2074,133 @@ export default function LessonEditorPage() {
 
                             <div className="space-y-2">
                               {module.content.trueFalseStatements?.map((statement, i) => (
-                                <div key={statement.id} className="flex items-center gap-2 bg-white p-3 rounded-lg border border-slate-200">
-                                  <div className="flex-1">
-                                    <input
-                                      type="text"
-                                      value={statement.statement}
-                                      onChange={(e) => {
-                                        const newStatements = [...(module.content.trueFalseStatements || [])];
-                                        newStatements[i] = { ...newStatements[i], statement: e.target.value };
-                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                <div key={statement.id} className="bg-white p-3 rounded-lg border border-slate-200">
+                                  {/* Toolbar */}
+                                  <div className="flex items-center gap-1 mb-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.getElementById(`truefalse-input-${statement.id}`) as HTMLInputElement;
+                                        if (input) {
+                                          const start = input.selectionStart || 0;
+                                          const end = input.selectionEnd || 0;
+                                          const text = statement.statement || "";
+                                          const selectedText = text.substring(start, end);
+                                          if (selectedText) {
+                                            const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
+                                            const newStatements = [...(module.content.trueFalseStatements || [])];
+                                            newStatements[i] = { ...newStatements[i], statement: newText };
+                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                          }
+                                        }
                                       }}
-                                      className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                      placeholder="Enter statement..."
-                                    />
+                                      className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                      title="Bold"
+                                    >
+                                      <span className="font-bold text-xs">B</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.getElementById(`truefalse-input-${statement.id}`) as HTMLInputElement;
+                                        if (input) {
+                                          const start = input.selectionStart || 0;
+                                          const end = input.selectionEnd || 0;
+                                          const text = statement.statement || "";
+                                          const selectedText = text.substring(start, end);
+                                          if (selectedText) {
+                                            const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
+                                            const newStatements = [...(module.content.trueFalseStatements || [])];
+                                            newStatements[i] = { ...newStatements[i], statement: newText };
+                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                          }
+                                        }
+                                      }}
+                                      className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                      title="Italic"
+                                    >
+                                      <span className="italic text-xs">I</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.getElementById(`truefalse-input-${statement.id}`) as HTMLInputElement;
+                                        if (input) {
+                                          const start = input.selectionStart || 0;
+                                          const end = input.selectionEnd || 0;
+                                          const text = statement.statement || "";
+                                          const selectedText = text.substring(start, end);
+                                          if (selectedText) {
+                                            const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
+                                            const newStatements = [...(module.content.trueFalseStatements || [])];
+                                            newStatements[i] = { ...newStatements[i], statement: newText };
+                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                          }
+                                        }
+                                      }}
+                                      className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                      title="Underline"
+                                    >
+                                      <span className="underline text-xs">U</span>
+                                    </button>
                                   </div>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={() => {
-                                        const newStatements = [...(module.content.trueFalseStatements || [])];
-                                        newStatements[i] = { ...newStatements[i], isTrue: true };
-                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                      }}
-                                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                                        statement.isTrue
-                                          ? "bg-emerald-500 text-white"
-                                          : "bg-slate-100 text-slate-600 hover:bg-emerald-100"
-                                      }`}
-                                    >
-                                      True
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const newStatements = [...(module.content.trueFalseStatements || [])];
-                                        newStatements[i] = { ...newStatements[i], isTrue: false };
-                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                      }}
-                                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                                        !statement.isTrue
-                                          ? "bg-red-500 text-white"
-                                          : "bg-slate-100 text-slate-600 hover:bg-red-100"
-                                      }`}
-                                    >
-                                      False
-                                    </button>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1">
+                                      <input
+                                        id={`truefalse-input-${statement.id}`}
+                                        type="text"
+                                        value={statement.statement}
+                                        onChange={(e) => {
+                                          const newStatements = [...(module.content.trueFalseStatements || [])];
+                                          newStatements[i] = { ...newStatements[i], statement: e.target.value };
+                                          updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                        }}
+                                        className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                        placeholder="Enter statement..."
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          const newStatements = [...(module.content.trueFalseStatements || [])];
+                                          newStatements[i] = { ...newStatements[i], isTrue: true };
+                                          updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                        }}
+                                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                          statement.isTrue
+                                            ? "bg-emerald-500 text-white"
+                                            : "bg-slate-100 text-slate-600 hover:bg-emerald-100"
+                                        }`}
+                                      >
+                                        True
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const newStatements = [...(module.content.trueFalseStatements || [])];
+                                          newStatements[i] = { ...newStatements[i], isTrue: false };
+                                          updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                        }}
+                                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                          !statement.isTrue
+                                            ? "bg-red-500 text-white"
+                                            : "bg-slate-100 text-slate-600 hover:bg-red-100"
+                                        }`}
+                                      >
+                                        False
+                                      </button>
+                                      {module.content.trueFalseStatements && module.content.trueFalseStatements.length > 1 && (
+                                        <button
+                                          onClick={() => {
+                                            const newStatements = module.content.trueFalseStatements?.filter((_, idx) => idx !== i) || [];
+                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                          }}
+                                          className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                        >
+                                          <span className="material-symbols-outlined text-[18px]">close</span>
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                  {module.content.trueFalseStatements && module.content.trueFalseStatements.length > 1 && (
-                                    <button
-                                      onClick={() => {
-                                        const newStatements = module.content.trueFalseStatements?.filter((_, idx) => idx !== i) || [];
-                                        updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                      }}
-                                      className="p-1 hover:bg-red-50 text-red-600 rounded"
-                                    >
-                                      <span className="material-symbols-outlined text-[18px]">close</span>
-                                    </button>
-                                  )}
                                 </div>
                               ))}
                             </div>
@@ -1828,6 +2216,439 @@ export default function LessonEditorPage() {
                             >
                               + Add statement
                             </button>
+                          </div>
+                        )}
+
+                        {/* IMAGE CHOICE MODULE */}
+                        {module.type === "imagechoice" && (
+                          <div className="space-y-4">
+                            <input
+                              type="text"
+                              value={module.content.imageChoiceTitle || ""}
+                              onChange={(e) => updateModuleContent(module.id, { imageChoiceTitle: e.target.value })}
+                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                              placeholder="Title (e.g., Look at the pictures and choose the correct words)"
+                            />
+
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-600 font-medium">Image Items</p>
+                              <button
+                                onClick={() => {
+                                  const newItem: ImageChoiceItem = {
+                                    id: Date.now().toString(),
+                                    imageUrl: "",
+                                    imageName: "",
+                                    correctOption: "",
+                                    options: ["", "", ""]
+                                  };
+                                  updateModuleContent(module.id, {
+                                    imageChoiceItems: [...(module.content.imageChoiceItems || []), newItem]
+                                  });
+                                }}
+                                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+                              >
+                                <span className="material-symbols-outlined text-sm">add</span>
+                                Add Image
+                              </button>
+                            </div>
+
+                            {(!module.content.imageChoiceItems || module.content.imageChoiceItems.length === 0) && (
+                              <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200">
+                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">imagesmode</span>
+                                <p className="text-sm text-slate-400">No images yet. Click "Add Image" to get started.</p>
+                              </div>
+                            )}
+
+                            {/* Image Choice Items Grid */}
+                            {module.content.imageChoiceItems && module.content.imageChoiceItems.length > 0 && (
+                              <div className={`grid gap-4 ${
+                                module.content.imageChoiceItems.length === 1
+                                  ? "grid-cols-1 max-w-md mx-auto"
+                                  : module.content.imageChoiceItems.length === 2
+                                  ? "grid-cols-2"
+                                  : "grid-cols-2 lg:grid-cols-3"
+                              }`}>
+                                {module.content.imageChoiceItems.map((item, index) => (
+                                  <div key={item.id} className="bg-white p-3 rounded-lg border-2 border-sky-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-semibold text-sky-700">Image {index + 1}</span>
+                                      <button
+                                        onClick={() => {
+                                          const newItems = module.content.imageChoiceItems?.filter(i => i.id !== item.id) || [];
+                                          updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                        }}
+                                        className="text-red-500 hover:text-red-700"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                      </button>
+                                    </div>
+
+                                    {/* Image Upload/Preview */}
+                                    {item.imageUrl ? (
+                                      <div className="relative group mb-3">
+                                        <img src={item.imageUrl} alt="" className="w-full aspect-square object-cover rounded-lg" />
+                                        <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={async (e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                const { processedFile } = await processFileForUpload(file);
+                                                const lessonId = actualLessonId || params.id as string;
+                                                const { url } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+                                                if (url) {
+                                                  const newItems = module.content.imageChoiceItems?.map(i =>
+                                                    i.id === item.id ? { ...i, imageUrl: url, imageName: file.name } : i
+                                                  ) || [];
+                                                  updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                                }
+                                              }
+                                            }}
+                                            className="hidden"
+                                          />
+                                          <span className="text-white text-xs font-medium">Change Image</span>
+                                        </label>
+                                      </div>
+                                    ) : (
+                                      <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-sky-300 rounded-lg cursor-pointer hover:bg-sky-50/50 mb-3">
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              const { processedFile } = await processFileForUpload(file);
+                                              const lessonId = actualLessonId || params.id as string;
+                                              const { url } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+                                              if (url) {
+                                                const newItems = module.content.imageChoiceItems?.map(i =>
+                                                  i.id === item.id ? { ...i, imageUrl: url, imageName: file.name } : i
+                                                ) || [];
+                                                updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                              }
+                                            }
+                                          }}
+                                          className="hidden"
+                                        />
+                                        <span className="material-symbols-outlined text-3xl text-sky-300 mb-1">add_photo_alternate</span>
+                                        <span className="text-xs text-sky-500">Upload image</span>
+                                      </label>
+                                    )}
+
+                                    {/* Correct Answer */}
+                                    <input
+                                      type="text"
+                                      value={item.correctOption}
+                                      onChange={(e) => {
+                                        const newItems = module.content.imageChoiceItems?.map(i =>
+                                          i.id === item.id ? { ...i, correctOption: e.target.value } : i
+                                        ) || [];
+                                        updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                      }}
+                                      className="w-full bg-green-50 border border-green-300 rounded px-2 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                      placeholder="Correct answer"
+                                    />
+
+                                    {/* Wrong Options */}
+                                    <div className="space-y-1.5">
+                                      {item.options.map((opt, optIndex) => (
+                                        <input
+                                          key={optIndex}
+                                          type="text"
+                                          value={opt}
+                                          onChange={(e) => {
+                                            const newOptions = [...item.options];
+                                            newOptions[optIndex] = e.target.value;
+                                            const newItems = module.content.imageChoiceItems?.map(i =>
+                                              i.id === item.id ? { ...i, options: newOptions } : i
+                                            ) || [];
+                                            updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                          }}
+                                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                          placeholder={`Wrong option ${optIndex + 1}`}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* INLINE CHOICE MODULE */}
+                        {module.type === "inlinechoice" && (
+                          <div className="space-y-4">
+                            <input
+                              type="text"
+                              value={module.content.inlineChoiceTitle || ""}
+                              onChange={(e) => updateModuleContent(module.id, { inlineChoiceTitle: e.target.value })}
+                              className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                              placeholder="Title (e.g., Read each sentence and choose the correct word)"
+                            />
+
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-600 font-medium">Sentences</p>
+                              <button
+                                onClick={() => {
+                                  const newSentence: InlineChoiceSentence = {
+                                    id: Date.now().toString(),
+                                    text: "",
+                                    blanks: [{ correctAnswer: "", options: ["", ""] }]
+                                  };
+                                  updateModuleContent(module.id, {
+                                    inlineChoiceSentences: [...(module.content.inlineChoiceSentences || []), newSentence]
+                                  });
+                                }}
+                                className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+                              >
+                                <span className="material-symbols-outlined text-sm">add</span>
+                                Add Sentence
+                              </button>
+                            </div>
+
+                            <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                              Use <code className="bg-slate-200 px-1 rounded">1.</code>, <code className="bg-slate-200 px-1 rounded">2.</code>, etc. to mark dropdown positions in your sentence.
+                            </p>
+
+                            {/* Sentences List */}
+                            <div className="space-y-4">
+                              {module.content.inlineChoiceSentences?.map((sentence, sentenceIndex) => (
+                                <div key={sentence.id} className="bg-white p-4 rounded-lg border-2 border-violet-200">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs font-semibold text-violet-700">{sentenceIndex + 1}.</span>
+                                    {module.content.inlineChoiceSentences && module.content.inlineChoiceSentences.length > 1 && (
+                                      <button
+                                        onClick={() => {
+                                          const newSentences = module.content.inlineChoiceSentences?.filter(s => s.id !== sentence.id) || [];
+                                          updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                        }}
+                                        className="text-red-500 hover:text-red-700"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Sentence Text Toolbar */}
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {/* Add Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
+                                        if (textarea) {
+                                          const start = textarea.selectionStart;
+                                          const text = sentence.text || "";
+                                          // Count existing blanks to determine next number
+                                          const matches = text.match(/\d+\./g) || [];
+                                          const nextNum = matches.length + 1;
+                                          const newText = text.substring(0, start) + `${nextNum}.` + text.substring(start);
+                                          const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                            s.id === sentence.id ? { ...s, text: newText } : s
+                                          ) || [];
+                                          updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          // Focus back and set cursor position
+                                          setTimeout(() => {
+                                            textarea.focus();
+                                            const newPos = start + `${nextNum}.`.length;
+                                            textarea.setSelectionRange(newPos, newPos);
+                                          }, 0);
+                                        }
+                                      }}
+                                      className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100 transition-colors text-sm"
+                                      title="Add blank (1., 2., etc.)"
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">add</span>
+                                      <span className="text-xs font-medium">Add</span>
+                                    </button>
+
+                                    <div className="w-px h-5 bg-slate-200" />
+
+                                    {/* Bold Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
+                                        if (textarea) {
+                                          const start = textarea.selectionStart;
+                                          const end = textarea.selectionEnd;
+                                          const text = sentence.text || "";
+                                          const selectedText = text.substring(start, end);
+                                          if (selectedText) {
+                                            const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
+                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                              s.id === sentence.id ? { ...s, text: newText } : s
+                                            ) || [];
+                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          }
+                                        }
+                                      }}
+                                      className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                      title="Bold (select text first)"
+                                    >
+                                      <span className="font-bold text-xs">B</span>
+                                    </button>
+
+                                    {/* Italic Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
+                                        if (textarea) {
+                                          const start = textarea.selectionStart;
+                                          const end = textarea.selectionEnd;
+                                          const text = sentence.text || "";
+                                          const selectedText = text.substring(start, end);
+                                          if (selectedText) {
+                                            const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
+                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                              s.id === sentence.id ? { ...s, text: newText } : s
+                                            ) || [];
+                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          }
+                                        }
+                                      }}
+                                      className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                      title="Italic (select text first)"
+                                    >
+                                      <span className="italic text-xs">I</span>
+                                    </button>
+
+                                    {/* Underline Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
+                                        if (textarea) {
+                                          const start = textarea.selectionStart;
+                                          const end = textarea.selectionEnd;
+                                          const text = sentence.text || "";
+                                          const selectedText = text.substring(start, end);
+                                          if (selectedText) {
+                                            const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
+                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                              s.id === sentence.id ? { ...s, text: newText } : s
+                                            ) || [];
+                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          }
+                                        }
+                                      }}
+                                      className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                      title="Underline (select text first)"
+                                    >
+                                      <span className="underline text-xs">U</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Sentence Text */}
+                                  <textarea
+                                    id={`inlinechoice-textarea-${sentence.id}`}
+                                    value={sentence.text}
+                                    onChange={(e) => {
+                                      const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                        s.id === sentence.id ? { ...s, text: e.target.value } : s
+                                      ) || [];
+                                      updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                    }}
+                                    className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                                    placeholder="Enter sentence with 1., 2. for dropdowns. E.g.: The cat 1. on the mat."
+                                    rows={4}
+                                  />
+
+                                  {/* Blanks */}
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-slate-600 font-medium">Dropdown Options</span>
+                                      <button
+                                        onClick={() => {
+                                          const newBlanks = [...sentence.blanks, { correctAnswer: "", options: ["", ""] }];
+                                          const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                            s.id === sentence.id ? { ...s, blanks: newBlanks } : s
+                                          ) || [];
+                                          updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                        }}
+                                        className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                                      >
+                                        + Add dropdown
+                                      </button>
+                                    </div>
+
+                                    {sentence.blanks.map((blank, blankIndex) => (
+                                      <div key={blankIndex} className="bg-violet-50 p-3 rounded-lg">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-xs font-medium text-violet-600">Dropdown {blankIndex + 1}.</span>
+                                          {sentence.blanks.length > 1 && (
+                                            <button
+                                              onClick={() => {
+                                                const newBlanks = sentence.blanks.filter((_, i) => i !== blankIndex);
+                                                const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                                  s.id === sentence.id ? { ...s, blanks: newBlanks } : s
+                                                ) || [];
+                                                updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                              }}
+                                              className="text-red-500 hover:text-red-700"
+                                            >
+                                              <span className="material-symbols-outlined text-[14px]">close</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                        <input
+                                          type="text"
+                                          value={blank.correctAnswer}
+                                          onChange={(e) => {
+                                            const newBlanks = [...sentence.blanks];
+                                            newBlanks[blankIndex] = { ...newBlanks[blankIndex], correctAnswer: e.target.value };
+                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                              s.id === sentence.id ? { ...s, blanks: newBlanks } : s
+                                            ) || [];
+                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          }}
+                                          className="w-full bg-green-50 border border-green-300 rounded px-2 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                          placeholder="Correct answer"
+                                        />
+                                        <div className="flex gap-2 flex-wrap">
+                                          {blank.options.map((opt, optIndex) => (
+                                            <input
+                                              key={optIndex}
+                                              type="text"
+                                              value={opt}
+                                              onChange={(e) => {
+                                                const newOptions = [...blank.options];
+                                                newOptions[optIndex] = e.target.value;
+                                                const newBlanks = [...sentence.blanks];
+                                                newBlanks[blankIndex] = { ...newBlanks[blankIndex], options: newOptions };
+                                                const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                                  s.id === sentence.id ? { ...s, blanks: newBlanks } : s
+                                                ) || [];
+                                                updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                              }}
+                                              className="flex-1 min-w-[100px] bg-white border border-slate-200 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                              placeholder={`Wrong ${optIndex + 1}`}
+                                            />
+                                          ))}
+                                          <button
+                                            onClick={() => {
+                                              const newOptions = [...blank.options, ""];
+                                              const newBlanks = [...sentence.blanks];
+                                              newBlanks[blankIndex] = { ...newBlanks[blankIndex], options: newOptions };
+                                              const newSentences = module.content.inlineChoiceSentences?.map(s =>
+                                                s.id === sentence.id ? { ...s, blanks: newBlanks } : s
+                                              ) || [];
+                                              updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                            }}
+                                            className="px-2 py-1.5 text-violet-600 hover:bg-violet-100 rounded text-xs"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -2046,7 +2867,11 @@ export default function LessonEditorPage() {
                               </div>
                             )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className={`grid gap-3 ${
+                              module.content.imageItems?.length === 1
+                                ? "grid-cols-1 max-w-lg mx-auto"
+                                : "grid-cols-1 md:grid-cols-2"
+                            }`}>
                               {module.content.imageItems?.map((item, index) => (
                                 <div key={item.id} className="bg-white p-4 rounded-lg border-2 border-blue-200">
                                   <div className="flex items-start justify-between mb-3">
@@ -2062,7 +2887,7 @@ export default function LessonEditorPage() {
                                   {item.imageUrl ? (
                                     <div className="space-y-2">
                                       <div
-                                        className="relative group"
+                                        className="relative"
                                         onDragOver={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
@@ -2093,7 +2918,7 @@ export default function LessonEditorPage() {
                                         }}
                                       >
                                         <img src={item.imageUrl} alt={item.caption || "Image"} className="w-full rounded-lg" />
-                                        <label className="absolute inset-0 bg-black/50 opacity-100 xl:opacity-0 xl:group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
+                                        <label className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
                                           <input
                                             type="file"
                                             accept="image/*"
@@ -2162,6 +2987,51 @@ export default function LessonEditorPage() {
                                     className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     placeholder="Caption (e.g., Kot, Pies)"
                                   />
+
+                                  {/* Orientation Selection */}
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-xs text-slate-500">Orientation:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (module.content.imageItems) {
+                                          updateModuleContent(module.id, {
+                                            imageItems: module.content.imageItems.map((imgItem: ImageItem) =>
+                                              imgItem.id === item.id ? { ...imgItem, orientation: "landscape" } : imgItem
+                                            )
+                                          });
+                                        }
+                                      }}
+                                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+                                        (item.orientation || "landscape") === "landscape"
+                                          ? "bg-blue-600 text-white"
+                                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                      }`}
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">crop_landscape</span>
+                                      Landscape
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (module.content.imageItems) {
+                                          updateModuleContent(module.id, {
+                                            imageItems: module.content.imageItems.map((imgItem: ImageItem) =>
+                                              imgItem.id === item.id ? { ...imgItem, orientation: "portrait" } : imgItem
+                                            )
+                                          });
+                                        }
+                                      }}
+                                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
+                                        item.orientation === "portrait"
+                                          ? "bg-blue-600 text-white"
+                                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                      }`}
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">crop_portrait</span>
+                                      Portrait
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>

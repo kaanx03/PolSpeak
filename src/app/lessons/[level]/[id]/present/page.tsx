@@ -17,6 +17,7 @@ interface ImageItem {
   imageUrl: string;
   imageName: string;
   caption: string;
+  orientation?: "landscape" | "portrait";
 }
 
 interface TrueFalseStatement {
@@ -25,16 +26,54 @@ interface TrueFalseStatement {
   isTrue: boolean;
 }
 
+interface ImageChoiceItem {
+  id: string;
+  imageUrl: string;
+  imageName: string;
+  correctOption: string;
+  options: string[];
+}
+
+interface InlineChoiceSentence {
+  id: string;
+  text: string;
+  blanks: {
+    correctAnswer: string;
+    options: string[];
+  }[];
+}
+
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice";
   content: any;
 }
+
+// Helper function to render text with bold, italic, and underline formatting
+const formatText = (text: string) => {
+  if (!text) return null;
+  // Split by bold (**text**), italic (*text*), and underline (__text__)
+  return text.split(/(\*\*.*?\*\*|\*[^*]+\*|__.*?__)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("__") && part.endsWith("__")) {
+      return <u key={i}>{part.slice(2, -2)}</u>;
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
 
 export default function PresentationPage() {
   const params = useParams();
   const [lessonTitle, setLessonTitle] = useState("Loading...");
   const [modules, setModules] = useState<Module[]>([]);
+  const [activeModuleIndex, setActiveModuleIndex] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const moduleRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Load lesson from Supabase
   useEffect(() => {
@@ -51,807 +90,1166 @@ export default function PresentationPage() {
     }
   };
 
-  const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<{ [key: string]: any }>({});
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [showAnswers, setShowAnswers] = useState<{ [key: string]: boolean }>({});
 
   // Audio management
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Matching game state
-  const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
-  const [selectedRight, setSelectedRight] = useState<number | null>(null);
-  const [matchedPairs, setMatchedPairs] = useState<Set<string>>(new Set());
-  const [shuffledLeftItems, setShuffledLeftItems] = useState<any[]>([]);
-  const [shuffledRightItems, setShuffledRightItems] = useState<any[]>([]);
+  // Matching game state - per module
+  const [matchingStates, setMatchingStates] = useState<{ [moduleId: string]: {
+    selectedLeft: number | null;
+    selectedRight: number | null;
+    matchedPairs: Set<string>;
+    shuffledLeftItems: any[];
+    shuffledRightItems: any[];
+  }}>({});
 
-  // True/False state
-  const [trueFalseAnswers, setTrueFalseAnswers] = useState<{ [statementId: string]: boolean | null }>({});
-  const [showTrueFalseResults, setShowTrueFalseResults] = useState(false);
+  // True/False state - per module
+  const [trueFalseStates, setTrueFalseStates] = useState<{ [moduleId: string]: {
+    answers: { [statementId: string]: boolean | null };
+    showResults: boolean;
+  }}>({});
 
-  // Stop audio when changing modules
+  // Track scroll position to update active module
   useEffect(() => {
-    return () => {
-      if (currentAudioRef.current) {
-        currentAudioRef.current.pause();
-        currentAudioRef.current = null;
-      }
+    const handleScroll = () => {
+      if (!contentRef.current) return;
+
+      const containerHeight = contentRef.current.clientHeight;
+
+      // Find which module is most visible
+      let activeIndex = 0;
+      let minDistance = Infinity;
+
+      moduleRefs.current.forEach((ref, index) => {
+        if (ref) {
+          const rect = ref.getBoundingClientRect();
+          const containerRect = contentRef.current!.getBoundingClientRect();
+          const relativeTop = rect.top - containerRect.top;
+          const distance = Math.abs(relativeTop - containerHeight * 0.3);
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            activeIndex = index;
+          }
+        }
+      });
+
+      setActiveModuleIndex(activeIndex);
     };
-  }, [currentModuleIndex]);
 
-  const currentModule = modules[currentModuleIndex];
-  const isFirstModule = currentModuleIndex === 0;
-  const isLastModule = currentModuleIndex === modules.length - 1;
-
-  const goToNext = () => {
-    if (!isLastModule) {
-      setCurrentModuleIndex(currentModuleIndex + 1);
-      setShowAnswer(false);
-      resetMatchingGame();
+    const container = contentRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
     }
-  };
+  }, [modules]);
 
-  const goToPrevious = () => {
-    if (!isFirstModule) {
-      setCurrentModuleIndex(currentModuleIndex - 1);
-      setShowAnswer(false);
-      resetMatchingGame();
-    }
-  };
-
-  const resetMatchingGame = () => {
-    setSelectedLeft(null);
-    setSelectedRight(null);
-    setMatchedPairs(new Set());
-    setShuffledLeftItems([]);
-    setShuffledRightItems([]);
-    // Reset true/false
-    setTrueFalseAnswers({});
-    setShowTrueFalseResults(false);
-  };
-
-  // Shuffle both sides when matching module loads
+  // Initialize matching game state for each matching module
   useEffect(() => {
-    if (currentModule?.type === "matching" && currentModule.content.pairs) {
-      // Reset game state
-      setSelectedLeft(null);
-      setSelectedRight(null);
-      setMatchedPairs(new Set());
+    modules.forEach((module) => {
+      if (module.type === "matching" && module.content.pairs && !matchingStates[module.id]) {
+        const leftItems = module.content.pairs.map((pair: any, index: number) => ({
+          text: pair.left,
+          image: pair.leftImage,
+          originalIndex: index,
+          id: `left-${index}`,
+        }));
+        const shuffledLeft = [...leftItems].sort(() => Math.random() - 0.5);
 
-      // Shuffle left items
-      const leftItems = currentModule.content.pairs.map((pair: any, index: number) => ({
-        text: pair.left,
-        image: pair.leftImage,
-        originalIndex: index,
-        id: `left-${index}`,
-      }));
-      const shuffledLeft = [...leftItems].sort(() => Math.random() - 0.5);
-      setShuffledLeftItems(shuffledLeft);
+        const rightItems = module.content.pairs.map((pair: any, index: number) => ({
+          text: pair.right,
+          image: pair.rightImage,
+          originalIndex: index,
+          id: `right-${index}`,
+        }));
+        const shuffledRight = [...rightItems].sort(() => Math.random() - 0.5);
 
-      // Shuffle right items
-      const rightItems = currentModule.content.pairs.map((pair: any, index: number) => ({
-        text: pair.right,
-        image: pair.rightImage,
-        originalIndex: index,
-        id: `right-${index}`,
-      }));
-      const shuffledRight = [...rightItems].sort(() => Math.random() - 0.5);
-      setShuffledRightItems(shuffledRight);
-    }
-  }, [currentModule]);
+        setMatchingStates(prev => ({
+          ...prev,
+          [module.id]: {
+            selectedLeft: null,
+            selectedRight: null,
+            matchedPairs: new Set(),
+            shuffledLeftItems: shuffledLeft,
+            shuffledRightItems: shuffledRight,
+          }
+        }));
+      }
+    });
+  }, [modules]);
 
-  const handleMatchingClick = (side: "left" | "right", item: any, displayIndex: number) => {
+  const handleMatchingClick = (moduleId: string, side: "left" | "right", item: any, displayIndex: number, pairs: any[]) => {
+    const state = matchingStates[moduleId];
+    if (!state) return;
+
     const pairId = `${item.originalIndex}`;
-    if (matchedPairs instanceof Set && matchedPairs.has(pairId)) return; // Already matched
+    if (state.matchedPairs.has(pairId)) return;
 
     if (side === "left") {
-      if (selectedLeft === displayIndex) {
-        setSelectedLeft(null); // Deselect
+      if (state.selectedLeft === displayIndex) {
+        setMatchingStates(prev => ({
+          ...prev,
+          [moduleId]: { ...prev[moduleId], selectedLeft: null }
+        }));
       } else {
-        setSelectedLeft(displayIndex);
-        // Check if we have both selected
-        if (selectedRight !== null) {
-          const rightItem = shuffledRightItems[selectedRight];
-          checkMatch(item, rightItem);
+        const newState = { ...state, selectedLeft: displayIndex };
+        if (state.selectedRight !== null) {
+          const rightItem = state.shuffledRightItems[state.selectedRight];
+          checkMatch(moduleId, item, rightItem, newState);
+        } else {
+          setMatchingStates(prev => ({ ...prev, [moduleId]: newState }));
         }
       }
     } else {
-      if (selectedRight === displayIndex) {
-        setSelectedRight(null); // Deselect
+      if (state.selectedRight === displayIndex) {
+        setMatchingStates(prev => ({
+          ...prev,
+          [moduleId]: { ...prev[moduleId], selectedRight: null }
+        }));
       } else {
-        setSelectedRight(displayIndex);
-        // Check if we have both selected
-        if (selectedLeft !== null) {
-          const leftItem = shuffledLeftItems[selectedLeft];
-          checkMatch(leftItem, item);
+        const newState = { ...state, selectedRight: displayIndex };
+        if (state.selectedLeft !== null) {
+          const leftItem = state.shuffledLeftItems[state.selectedLeft];
+          checkMatch(moduleId, leftItem, item, newState);
+        } else {
+          setMatchingStates(prev => ({ ...prev, [moduleId]: newState }));
         }
       }
     }
   };
 
-  const checkMatch = (leftItem: any, rightItem: any) => {
+  const checkMatch = (moduleId: string, leftItem: any, rightItem: any, currentState: any) => {
     if (leftItem.originalIndex === rightItem.originalIndex) {
-      // Correct match!
-      const newMatched = new Set(matchedPairs);
+      const newMatched = new Set(currentState.matchedPairs);
       newMatched.add(`${leftItem.originalIndex}`);
-      setMatchedPairs(newMatched);
-      setSelectedLeft(null);
-      setSelectedRight(null);
+      setMatchingStates(prev => ({
+        ...prev,
+        [moduleId]: {
+          ...currentState,
+          matchedPairs: newMatched,
+          selectedLeft: null,
+          selectedRight: null,
+        }
+      }));
     } else {
-      // Wrong match - deselect after a moment
+      setMatchingStates(prev => ({ ...prev, [moduleId]: currentState }));
       setTimeout(() => {
-        setSelectedLeft(null);
-        setSelectedRight(null);
+        setMatchingStates(prev => ({
+          ...prev,
+          [moduleId]: { ...prev[moduleId], selectedLeft: null, selectedRight: null }
+        }));
       }, 800);
     }
   };
 
-  const handleAnswerChange = (value: any) => {
-    setUserAnswers({
-      ...userAnswers,
-      [currentModule.id]: value,
-    });
-    // Auto-show answer for quiz
-    if (currentModule.type === "quiz") {
-      setShowAnswer(true);
+  const handleAnswerChange = (moduleId: string, value: any, isQuiz: boolean) => {
+    setUserAnswers(prev => ({ ...prev, [moduleId]: value }));
+    if (isQuiz) {
+      setShowAnswers(prev => ({ ...prev, [moduleId]: true }));
     }
   };
 
-  const toggleAnswer = () => {
-    setShowAnswer(!showAnswer);
+  const toggleAnswer = (moduleId: string) => {
+    setShowAnswers(prev => ({ ...prev, [moduleId]: !prev[moduleId] }));
   };
 
   const playAudio = (audioUrl: string) => {
-    // Stop currently playing audio
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
-    // Play new audio
     const audio = new Audio(audioUrl);
     currentAudioRef.current = audio;
     audio.play();
   };
 
+  const scrollToModule = (index: number) => {
+    const ref = moduleRefs.current[index];
+    if (ref && contentRef.current) {
+      ref.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Image Choice state - per module
+  const [imageChoiceStates, setImageChoiceStates] = useState<{ [moduleId: string]: {
+    selections: { [itemId: string]: string };
+    shuffledOptions: { [itemId: string]: string[] };
+    showResults: boolean;
+  }}>({});
+
+  // Initialize shuffled options for image choice modules
+  useEffect(() => {
+    modules.forEach((module) => {
+      if (module.type === "imagechoice" && module.content.imageChoiceItems && !imageChoiceStates[module.id]?.shuffledOptions) {
+        const shuffledOptions: { [itemId: string]: string[] } = {};
+        module.content.imageChoiceItems.forEach((item: ImageChoiceItem) => {
+          const allOptions = [item.correctOption, ...item.options].filter(o => o);
+          shuffledOptions[item.id] = [...allOptions].sort(() => Math.random() - 0.5);
+        });
+        setImageChoiceStates(prev => ({
+          ...prev,
+          [module.id]: {
+            selections: prev[module.id]?.selections || {},
+            shuffledOptions,
+            showResults: prev[module.id]?.showResults || false
+          }
+        }));
+      }
+    });
+  }, [modules]);
+
+  // Inline Choice state - per module
+  const [inlineChoiceStates, setInlineChoiceStates] = useState<{ [moduleId: string]: {
+    selections: { [sentenceId: string]: { [blankIndex: number]: string } };
+    shuffledOptions: { [sentenceId: string]: { [blankIndex: number]: string[] } };
+    showResults: boolean;
+  }}>({});
+
+  // Initialize shuffled options for inline choice modules
+  useEffect(() => {
+    modules.forEach((module) => {
+      if (module.type === "inlinechoice" && module.content.inlineChoiceSentences && !inlineChoiceStates[module.id]?.shuffledOptions) {
+        const shuffledOptions: { [sentenceId: string]: { [blankIndex: number]: string[] } } = {};
+        module.content.inlineChoiceSentences.forEach((sentence: InlineChoiceSentence) => {
+          shuffledOptions[sentence.id] = {};
+          sentence.blanks.forEach((blank, blankIndex) => {
+            const allOptions = [blank.correctAnswer, ...blank.options].filter(o => o);
+            shuffledOptions[sentence.id][blankIndex] = [...allOptions].sort(() => Math.random() - 0.5);
+          });
+        });
+        setInlineChoiceStates(prev => ({
+          ...prev,
+          [module.id]: {
+            selections: prev[module.id]?.selections || {},
+            shuffledOptions,
+            showResults: prev[module.id]?.showResults || false
+          }
+        }));
+      }
+    });
+  }, [modules]);
+
+  const getModuleTypeName = (type: string) => {
+    const names: { [key: string]: string } = {
+      fillblank: "Fill in the blanks",
+      text: "Text",
+      quiz: "Choose the answer",
+      truefalse: "True or False",
+      imagechoice: "Choose the word",
+      inlinechoice: "Choose the correct word",
+      image: "Image",
+      pdf: "PDF Document",
+      audio: "Audio",
+      matching: "Match the pairs",
+      wordwall: "Wordwall",
+      baamboozle: "Baamboozle",
+      quizlet: "Quizlet",
+      genially: "Genially",
+      miro: "Miro Board",
+    };
+    return names[type] || type;
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Top Bar */}
-      <div className="flex-shrink-0 bg-black/20 backdrop-blur-sm border-b border-white/10 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href={`/lessons/${params.level}`}
-              className="text-white/60 hover:text-white transition-colors"
+    <div className="flex h-screen w-full bg-white">
+      {/* Left Progress Bar - Desktop */}
+      <div className="hidden lg:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
+        {/* Back Button */}
+        <Link
+          href={`/lessons/${params.level}`}
+          className="mx-auto mb-6 size-9 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+        </Link>
+
+        {/* Progress Dots */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          {modules.map((module, index) => (
+            <button
+              key={module.id}
+              onClick={() => scrollToModule(index)}
+              className={`group relative size-2.5 rounded-full transition-all ${
+                index === activeModuleIndex
+                  ? "bg-blue-600 scale-150"
+                  : index < activeModuleIndex
+                  ? "bg-blue-400"
+                  : "bg-slate-300 hover:bg-slate-400"
+              }`}
             >
-              <span className="material-symbols-outlined">close</span>
-            </Link>
-            <h1 className="text-xl font-bold text-white">{lessonTitle}</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-white/60 text-sm">
-              {currentModuleIndex + 1} / {modules.length}
-            </span>
-          </div>
+              {/* Tooltip */}
+              <span className="absolute left-8 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {getModuleTypeName(module.type)}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Module Counter */}
+        <div className="mx-auto text-center">
+          <span className="text-xs font-semibold text-blue-600">{activeModuleIndex + 1}</span>
+          <span className="text-xs text-slate-400">/{modules.length}</span>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className={`flex-1 flex items-center justify-center p-6 ${currentModule?.type === 'pdf' ? 'overflow-hidden' : 'overflow-auto'}`}>
-        <div className="w-full max-w-4xl">
-          {currentModule && (
-            <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12 min-h-[400px] flex flex-col">
-              {/* Module Type Badge */}
-              <div className="mb-6">
-                <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full uppercase tracking-wide">
-                  {currentModule.type === "fillblank" && "Fill in the Blank"}
-                  {currentModule.type === "text" && "Text Content"}
-                  {currentModule.type === "quiz" && "Quiz"}
-                  {currentModule.type === "truefalse" && "True or False"}
-                  {currentModule.type === "image" && "Image"}
-                  {currentModule.type === "pdf" && "PDF Document"}
-                  {currentModule.type === "audio" && "Audio"}
-                  {currentModule.type === "matching" && "Matching Exercise"}
-                  {currentModule.type === "wordwall" && "Wordwall Activity"}
-                  {currentModule.type === "baamboozle" && "Baamboozle"}
-                  {currentModule.type === "quizlet" && "Quizlet"}
-                  {currentModule.type === "genially" && "Genially"}
-                  {currentModule.type === "miro" && "Miro Board"}
-                </span>
-              </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar - Mobile */}
+        <div className="lg:hidden flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <Link
+              href={`/lessons/${params.level}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600"
+            >
+              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+              Back
+            </Link>
+            <span className="text-slate-800 font-medium text-sm truncate max-w-[200px]">{lessonTitle}</span>
+            <span className="text-slate-500 text-sm font-medium">
+              {activeModuleIndex + 1}/{modules.length}
+            </span>
+          </div>
+          {/* Mobile Progress Bar */}
+          <div className="mt-2 h-1 bg-slate-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 transition-all duration-300"
+              style={{ width: `${((activeModuleIndex + 1) / modules.length) * 100}%` }}
+            />
+          </div>
+        </div>
 
-              {/* Module Content */}
-              <div className="flex-1">
-                {/* Text Module */}
-                {currentModule.type === "text" && (
-                  <div className="prose prose-lg max-w-none">
-                    <p className="text-2xl text-slate-800 leading-relaxed">
-                      {currentModule.content.text}
-                    </p>
+        {/* Scrollable Content */}
+        <div ref={contentRef} className="flex-1 overflow-y-auto bg-white">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+            {/* Lesson Title - Desktop only */}
+            <div className="hidden lg:block text-center mb-10">
+              <h1 className="text-2xl font-bold text-slate-800">{lessonTitle}</h1>
+            </div>
+
+            {/* All Modules */}
+            <div className="space-y-10">
+              {modules.map((module, index) => (
+                <div
+                  key={module.id}
+                  ref={(el) => { moduleRefs.current[index] = el; }}
+                >
+                  {/* Module Header */}
+                  <div className="flex items-center gap-2 mb-6">
+                    <span className="flex items-center justify-center size-7 bg-blue-100 text-blue-600 rounded-full font-semibold text-sm">
+                      {index + 1}
+                    </span>
+                    <span className="text-slate-700 font-semibold">
+                      {getModuleTypeName(module.type)}
+                    </span>
                   </div>
-                )}
 
-                {/* Fill in the Blank Module */}
-                {currentModule.type === "fillblank" && currentModule.content?.sentence && currentModule.content.sentence.includes("{") && (
-                  <div className="relative pb-16">
-                    <div className="space-y-6 mb-4">
-                      <p className="text-2xl text-slate-800 leading-[3.5rem] mb-8">
-                        {currentModule.content.sentence.split("{").map((part: string, i: number) => {
-                          if (i === 0) return part;
-                          const [blank, rest] = part.split("}");
-                          const blankIndex = i - 1;
-                          return (
-                            <span key={i}>
-                              <input
-                                type="text"
-                                className="inline-block w-32 mx-2 px-3 py-2 border-b-2 border-indigo-500 bg-indigo-50 text-center text-xl font-semibold focus:outline-none focus:border-indigo-700"
-                                placeholder="___"
-                                value={userAnswers[`${currentModule.id}-${blankIndex}`] || ""}
-                                onChange={(e) => {
-                                  setUserAnswers({
-                                    ...userAnswers,
-                                    [`${currentModule.id}-${blankIndex}`]: e.target.value,
-                                  });
-                                }}
-                              />
-                              {rest}
-                            </span>
-                          );
-                        })}
-                      </p>
-                      <button
-                        onClick={toggleAnswer}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  {/* Module Content */}
+                  <div>
+                    {/* Text Module */}
+                    {module.type === "text" && (
+                      <div
+                        className="prose prose-slate max-w-none rounded-lg p-4"
+                        style={{ backgroundColor: module.content.textBgColor || "transparent" }}
                       >
-                        {showAnswer ? "Hide Answer" : "Show Answer"}
-                      </button>
-                    </div>
-                    {showAnswer && currentModule.content?.answers?.length > 0 && (
-                      <div className="absolute bottom-0 left-0 inline-block px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <p className="text-emerald-800 text-sm font-semibold whitespace-nowrap">
-                          Correct Answer: {currentModule.content.answers.join(", ")}
+                        <p className="text-lg text-slate-700 leading-relaxed whitespace-pre-wrap">
+                          {formatText(module.content.text || "")}
                         </p>
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Quiz Module */}
-                {currentModule.type === "quiz" && (
-                  <div className="space-y-6">
-                    <div className="flex items-start gap-6 mb-6">
-                      <div className="flex-1">
-                        <h2 className="text-2xl font-bold text-slate-800 mb-4">
-                          {currentModule.content.question}
-                        </h2>
+                    {/* Fill in the Blank Module */}
+                    {module.type === "fillblank" && module.content?.sentence && (
+                      <div className="space-y-6">
+                        <p className="text-lg text-slate-700 leading-loose">
+                          {(() => {
+                            // Check if using new 1. 2. syntax or old {} syntax
+                            const sentence = module.content.sentence;
+                            const usesNewSyntax = /\d+\./.test(sentence);
+
+                            if (usesNewSyntax) {
+                              // Parse with 1. 2. syntax
+                              const parts = sentence.split(/(\d+\.)/g);
+                              return parts.map((part: string, partIndex: number) => {
+                                const match = part.match(/^(\d+)\.$/);
+                                if (match) {
+                                  const blankIndex = parseInt(match[1]) - 1;
+                                  const userValue = userAnswers[`${module.id}-${blankIndex}`] || "";
+                                  const isCorrect = showAnswers[module.id] && module.content?.answers?.[blankIndex] &&
+                                    userValue.toLowerCase().trim() === module.content.answers[blankIndex].toLowerCase().trim();
+                                  const isWrong = showAnswers[module.id] && userValue && !isCorrect;
+
+                                  return (
+                                    <span key={partIndex} className="inline-flex items-center align-middle">
+                                      <input
+                                        type="text"
+                                        className={`inline-block w-28 mx-1 px-2 py-1 border-b-2 text-center font-medium focus:outline-none transition-colors ${
+                                          isCorrect
+                                            ? "border-green-500 bg-green-50 text-green-700"
+                                            : isWrong
+                                            ? "border-red-500 bg-red-50 text-red-700"
+                                            : "border-blue-400 bg-blue-50 text-slate-700 focus:border-blue-600"
+                                        }`}
+                                        placeholder="..."
+                                        value={userValue}
+                                        onChange={(e) => {
+                                          setUserAnswers(prev => ({
+                                            ...prev,
+                                            [`${module.id}-${blankIndex}`]: e.target.value,
+                                          }));
+                                        }}
+                                      />
+                                      {showAnswers[module.id] && isWrong && (
+                                        <span className="text-green-600 font-medium ml-1 text-sm">
+                                          {module.content.answers[blankIndex]}
+                                        </span>
+                                      )}
+                                    </span>
+                                  );
+                                }
+                                return <span key={partIndex}>{part}</span>;
+                              });
+                            } else {
+                              // Old {} syntax for backwards compatibility
+                              return sentence.split("{").map((part: string, i: number) => {
+                                if (i === 0) return <span key={i}>{part}</span>;
+                                const [, rest] = part.split("}");
+                                const blankIndex = i - 1;
+                                const userValue = userAnswers[`${module.id}-${blankIndex}`] || "";
+                                const isCorrect = showAnswers[module.id] && module.content?.answers?.[blankIndex] &&
+                                  userValue.toLowerCase().trim() === module.content.answers[blankIndex].toLowerCase().trim();
+                                const isWrong = showAnswers[module.id] && userValue && !isCorrect;
+
+                                return (
+                                  <span key={i}>
+                                    <input
+                                      type="text"
+                                      className={`inline-block w-28 mx-1 px-2 py-1 border-b-2 text-center font-medium focus:outline-none transition-colors ${
+                                        isCorrect
+                                          ? "border-green-500 bg-green-50 text-green-700"
+                                          : isWrong
+                                          ? "border-red-500 bg-red-50 text-red-700"
+                                          : "border-blue-400 bg-blue-50 text-slate-700 focus:border-blue-600"
+                                      }`}
+                                      placeholder="..."
+                                      value={userValue}
+                                      onChange={(e) => {
+                                        setUserAnswers(prev => ({
+                                          ...prev,
+                                          [`${module.id}-${blankIndex}`]: e.target.value,
+                                        }));
+                                      }}
+                                    />
+                                    {showAnswers[module.id] && isWrong && (
+                                      <span className="text-green-600 font-medium ml-1 text-sm">
+                                        {module.content.answers[blankIndex]}
+                                      </span>
+                                    )}
+                                    {rest}
+                                  </span>
+                                );
+                              });
+                            }
+                          })()}
+                        </p>
+                        {/* Check Answers Button - Bottom */}
+                        <button
+                          onClick={() => toggleAnswer(module.id)}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          {showAnswers[module.id] ? "Hide Answers" : "Check Answers"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Quiz Module */}
+                    {module.type === "quiz" && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium text-slate-800 mb-4">
+                          {formatText(module.content.question || "")}
+                        </h3>
 
                         {/* Question Media */}
-                        <div className="space-y-4 mb-4">
-                          {currentModule.content.questionImageUrl && (
-                            <div className="w-full max-w-md h-64 rounded-xl overflow-hidden shadow-lg border-2 border-purple-100">
-                              <img
-                                src={currentModule.content.questionImageUrl}
-                                alt="Question"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )}
-                          {currentModule.content.questionAudioUrl && (
-                            <div className="w-full max-w-md bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-4 shadow-md">
-                              <audio
-                                controls
-                                className="w-full [&::-webkit-media-controls-panel]:bg-transparent [&::-webkit-media-controls-enclosure]:bg-transparent"
-                                style={{
-                                  filter: 'hue-rotate(250deg) saturate(1.5)',
-                                  height: '40px',
-                                  backgroundColor: 'transparent'
-                                }}
-                              >
-                                <source src={currentModule.content.questionAudioUrl} />
-                              </audio>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {showAnswer && userAnswers[currentModule.id] !== undefined && (
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-full ${
-                          currentModule.content.options[userAnswers[currentModule.id]]?.isCorrect
-                            ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                            : "bg-red-100 text-red-700 border border-red-300"
-                        }`}>
-                          {currentModule.content.options[userAnswers[currentModule.id]]?.isCorrect ? "✓ Correct!" : "✗ Wrong"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      {currentModule.content.options.map((option: any, i: number) => {
-                        const isSelected = userAnswers[currentModule.id] === i;
-                        const isCorrectOption = typeof option === 'string' ? false : option.isCorrect;
-
-                        let buttonClass = "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700";
-
-                        if (showAnswer) {
-                          if (isCorrectOption) {
-                            buttonClass = "bg-emerald-50 border-emerald-500 text-emerald-800";
-                          } else if (isSelected) {
-                            buttonClass = "bg-red-50 border-red-500 text-red-800";
-                          }
-                        } else if (isSelected) {
-                          buttonClass = "bg-indigo-50 border-indigo-500 text-indigo-800";
-                        }
-
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => handleAnswerChange(i)}
-                            className={`w-full text-left px-6 py-4 rounded-xl border-2 transition-all ${buttonClass}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="flex items-center justify-center size-6 rounded-full border-2 border-current">
-                                {isSelected && (
-                                  <span className="size-3 rounded-full bg-current"></span>
-                                )}
-                              </span>
-                              <span className="text-lg font-medium">{typeof option === 'string' ? option : option.text}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* True/False Module */}
-                {currentModule.type === "truefalse" && (
-                  <div className="space-y-6">
-                    {currentModule.content.trueFalseTitle && (
-                      <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">
-                        {currentModule.content.trueFalseTitle}
-                      </h2>
-                    )}
-
-                    <div className="space-y-4">
-                      {currentModule.content.trueFalseStatements?.map((statement: TrueFalseStatement, i: number) => {
-                        const userAnswer = trueFalseAnswers[statement.id];
-                        const isAnswered = userAnswer !== null && userAnswer !== undefined;
-                        const isCorrect = userAnswer === statement.isTrue;
-
-                        return (
-                          <div key={statement.id} className="bg-slate-50 rounded-xl p-6 border-2 border-slate-200">
-                            <p className="text-lg text-slate-800 font-medium text-center mb-4">
-                              {statement.statement}
-                            </p>
-
-                            <div className="flex justify-center gap-4">
-                              <button
-                                onClick={() => {
-                                  setTrueFalseAnswers(prev => ({ ...prev, [statement.id]: true }));
-                                }}
-                                className={`flex items-center gap-2 px-8 py-3 rounded-xl border-2 font-semibold transition-all ${
-                                  showTrueFalseResults && isAnswered
-                                    ? userAnswer === true
-                                      ? isCorrect
-                                        ? "bg-emerald-100 border-emerald-500 text-emerald-700"
-                                        : "bg-red-100 border-red-500 text-red-700"
-                                      : statement.isTrue
-                                        ? "bg-emerald-50 border-emerald-300 text-emerald-600"
-                                        : "bg-slate-100 border-slate-200 text-slate-500"
-                                    : userAnswer === true
-                                      ? "bg-emerald-100 border-emerald-500 text-emerald-700 scale-105"
-                                      : "bg-white border-slate-200 text-slate-600 hover:border-emerald-400 hover:bg-emerald-50"
-                                }`}
-                              >
-                                <span className="material-symbols-outlined text-xl">check_circle</span>
-                                True
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  setTrueFalseAnswers(prev => ({ ...prev, [statement.id]: false }));
-                                }}
-                                className={`flex items-center gap-2 px-8 py-3 rounded-xl border-2 font-semibold transition-all ${
-                                  showTrueFalseResults && isAnswered
-                                    ? userAnswer === false
-                                      ? isCorrect
-                                        ? "bg-emerald-100 border-emerald-500 text-emerald-700"
-                                        : "bg-red-100 border-red-500 text-red-700"
-                                      : !statement.isTrue
-                                        ? "bg-emerald-50 border-emerald-300 text-emerald-600"
-                                        : "bg-slate-100 border-slate-200 text-slate-500"
-                                    : userAnswer === false
-                                      ? "bg-red-100 border-red-500 text-red-700 scale-105"
-                                      : "bg-white border-slate-200 text-slate-600 hover:border-red-400 hover:bg-red-50"
-                                }`}
-                              >
-                                <span className="material-symbols-outlined text-xl">cancel</span>
-                                False
-                              </button>
-                            </div>
-
-                            {/* Show result indicator */}
-                            {showTrueFalseResults && isAnswered && (
-                              <div className={`mt-4 text-center text-sm font-medium ${isCorrect ? "text-emerald-600" : "text-red-600"}`}>
-                                {isCorrect ? "✓ Correct!" : `✗ The answer is ${statement.isTrue ? "True" : "False"}`}
+                        {(module.content.questionImageUrl || module.content.questionAudioUrl) && (
+                          <div className="space-y-3 mb-4">
+                            {module.content.questionImageUrl && (
+                              <div className="w-full rounded-lg overflow-hidden border border-slate-200">
+                                <img
+                                  src={module.content.questionImageUrl}
+                                  alt="Question"
+                                  className="w-full h-auto object-contain"
+                                />
                               </div>
                             )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Check Answers Button */}
-                    <div className="flex justify-center mt-6">
-                      <button
-                        onClick={() => setShowTrueFalseResults(!showTrueFalseResults)}
-                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors"
-                      >
-                        {showTrueFalseResults ? "Hide Results" : "Check Answers"}
-                      </button>
-                    </div>
-
-                    {/* Score display */}
-                    {showTrueFalseResults && currentModule.content.trueFalseStatements && (
-                      <div className="text-center mt-4">
-                        <p className="text-lg font-semibold text-slate-700">
-                          Score: {currentModule.content.trueFalseStatements.filter((s: TrueFalseStatement) => trueFalseAnswers[s.id] === s.isTrue).length} / {currentModule.content.trueFalseStatements.length}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Matching Module */}
-                {currentModule.type === "matching" && (
-                  <div className="relative min-h-[500px]">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-2xl font-bold text-slate-800">
-                        Match the pairs - Click one from each side
-                      </h2>
-                      {/* Progress - Top Right */}
-                      {matchedPairs instanceof Set && matchedPairs.size > 0 && (
-                        <div className="text-right">
-                          <p className="text-lg font-semibold text-emerald-600">
-                            {matchedPairs.size} / {currentModule.content.pairs?.length} matched!
-                            {matchedPairs.size === currentModule.content.pairs?.length && " 🎉"}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      {/* Left Column - Shuffled */}
-                      <div className="space-y-3">
-                        {shuffledLeftItems.map((item: any, i: number) => {
-                          const isMatched = matchedPairs instanceof Set ? matchedPairs.has(`${item.originalIndex}`) : false;
-                          const isSelected = selectedLeft === i;
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => handleMatchingClick("left", item, i)}
-                              disabled={isMatched}
-                              className={`w-full p-4 rounded-xl border-2 transition-all h-[120px] flex items-center justify-center ${
-                                isMatched
-                                  ? "bg-emerald-50 border-emerald-500 opacity-60 cursor-not-allowed"
-                                  : isSelected
-                                  ? "bg-blue-100 border-blue-500 scale-105 shadow-lg"
-                                  : "bg-blue-50 border-blue-200 hover:border-blue-400 hover:scale-102 cursor-pointer"
-                              }`}
-                            >
-                              {item.image ? (
-                                <img src={item.image} alt="Left" className="max-h-[90px] max-w-[90%] object-contain" />
-                              ) : (
-                                <span className="text-lg font-semibold text-slate-800">{item.text}</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Right Column - Shuffled */}
-                      <div className="space-y-3">
-                        {shuffledRightItems.map((item: any, i: number) => {
-                          const isMatched = matchedPairs instanceof Set ? matchedPairs.has(`${item.originalIndex}`) : false;
-                          const isSelected = selectedRight === i;
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => handleMatchingClick("right", item, i)}
-                              disabled={isMatched}
-                              className={`w-full p-4 rounded-xl border-2 transition-all h-[120px] flex items-center justify-center ${
-                                isMatched
-                                  ? "bg-emerald-50 border-emerald-500 opacity-60 cursor-not-allowed"
-                                  : isSelected
-                                  ? "bg-purple-100 border-purple-500 scale-105 shadow-lg"
-                                  : "bg-purple-50 border-purple-200 hover:border-purple-400 hover:scale-102 cursor-pointer"
-                              }`}
-                            >
-                              {item.image ? (
-                                <img src={item.image} alt="Right" className="max-h-[90px] max-w-[90%] object-contain" />
-                              ) : (
-                                <span className="text-lg font-semibold text-slate-800">{item.text}</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Audio Module */}
-                {currentModule.type === "audio" && (
-                  <div className="w-full flex items-center justify-center">
-                    {currentModule.content.audioItems && currentModule.content.audioItems.length > 0 ? (
-                      <div className={`grid gap-8 w-full ${
-                        currentModule.content.audioItems.length === 1
-                          ? "grid-cols-1 max-w-md"
-                          : currentModule.content.audioItems.length === 2
-                          ? "grid-cols-2 max-w-2xl"
-                          : currentModule.content.audioItems.length === 3
-                          ? "grid-cols-3 max-w-4xl"
-                          : "grid-cols-2 md:grid-cols-4 max-w-5xl"
-                      }`}>
-                        {currentModule.content.audioItems.map((item: AudioItem) => (
-                          <div key={item.id} className="flex flex-col items-center">
-                            <button
-                              onClick={() => playAudio(item.audioUrl)}
-                              className={`rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 flex items-center justify-center mb-4 transition-all shadow-lg hover:shadow-xl ${
-                                currentModule.content.audioItems.length === 1
-                                  ? "size-40"
-                                  : currentModule.content.audioItems.length === 2
-                                  ? "size-32"
-                                  : "size-24"
-                              }`}
-                            >
-                              <span className={`material-symbols-outlined text-white ${
-                                currentModule.content.audioItems.length === 1
-                                  ? "text-7xl"
-                                  : currentModule.content.audioItems.length === 2
-                                  ? "text-6xl"
-                                  : "text-5xl"
-                              }`}>
-                                volume_up
-                              </span>
-                            </button>
-                            {item.title && (
-                              <p className={`font-semibold text-slate-800 text-center ${
-                                currentModule.content.audioItems.length === 1
-                                  ? "text-3xl"
-                                  : currentModule.content.audioItems.length === 2
-                                  ? "text-2xl"
-                                  : "text-xl"
-                              }`}>{item.title}</p>
+                            {module.content.questionAudioUrl && (
+                              <audio controls className="w-full" style={{ height: '40px' }}>
+                                <source src={module.content.questionAudioUrl} />
+                              </audio>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="size-24 rounded-full bg-slate-100 flex items-center justify-center mb-4 mx-auto">
-                          <span className="material-symbols-outlined text-5xl text-slate-400">
-                            volume_up
-                          </span>
+                        )}
+
+                        <div className="space-y-2">
+                          {module.content.options.map((option: any, i: number) => {
+                            const isSelected = userAnswers[module.id] === i;
+                            const isCorrectOption = typeof option === 'string' ? false : option.isCorrect;
+                            const showAnswer = showAnswers[module.id];
+
+                            let buttonClass = "border-slate-200 hover:border-slate-300 hover:bg-slate-50";
+                            let indicatorClass = "border-slate-300";
+
+                            if (showAnswer) {
+                              if (isCorrectOption) {
+                                buttonClass = "border-green-500 bg-green-50";
+                                indicatorClass = "border-green-500 bg-green-500";
+                              } else if (isSelected) {
+                                buttonClass = "border-red-500 bg-red-50";
+                                indicatorClass = "border-red-500";
+                              }
+                            } else if (isSelected) {
+                              buttonClass = "border-blue-500 bg-blue-50";
+                              indicatorClass = "border-blue-500 bg-blue-500";
+                            }
+
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => handleAnswerChange(module.id, i, true)}
+                                className={`w-full text-left px-4 py-3 rounded-lg border transition-all flex items-center gap-3 ${buttonClass}`}
+                              >
+                                <span className={`flex items-center justify-center size-5 rounded-full border-2 transition-colors ${indicatorClass}`}>
+                                  {(isSelected || (showAnswer && isCorrectOption)) && (
+                                    <span className="material-symbols-outlined text-white text-[14px]">
+                                      {showAnswer && isCorrectOption ? "check" : ""}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-slate-700">{typeof option === 'string' ? option : option.text}</span>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <p className="text-slate-500">No audio items added</p>
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Image Module */}
-                {currentModule.type === "image" && (
-                  <div className="w-full flex items-center justify-center">
-                    {currentModule.content.imageItems && currentModule.content.imageItems.length > 0 ? (
-                      <div className={`grid gap-8 w-full ${
-                        currentModule.content.imageItems.length === 1
-                          ? "grid-cols-1 max-w-xl"
-                          : currentModule.content.imageItems.length === 2
-                          ? "grid-cols-2 max-w-3xl"
-                          : currentModule.content.imageItems.length === 3
-                          ? "grid-cols-3 max-w-5xl"
-                          : "grid-cols-2 md:grid-cols-4"
-                      }`}>
-                        {currentModule.content.imageItems.map((item: ImageItem) => (
-                          <div key={item.id} className="flex flex-col items-center">
-                            <div className={`w-full aspect-square rounded-xl overflow-hidden bg-slate-100 mb-3 shadow-lg ${
-                              currentModule.content.imageItems.length === 1
-                                ? "max-h-96"
-                                : ""
-                            }`}>
-                              {item.imageUrl ? (
-                                <img
-                                  src={item.imageUrl}
-                                  alt={item.caption || "Image"}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <span className="material-symbols-outlined text-6xl text-slate-400">image</span>
+                    {/* True/False Module */}
+                    {module.type === "truefalse" && (
+                      <div className="space-y-4">
+                        {module.content.trueFalseTitle && (
+                          <h3 className="text-lg font-medium text-slate-800 mb-4">
+                            {module.content.trueFalseTitle}
+                          </h3>
+                        )}
+
+                        <div className="space-y-3">
+                          {module.content.trueFalseStatements?.map((statement: TrueFalseStatement) => {
+                            const tfState = trueFalseStates[module.id] || { answers: {}, showResults: false };
+                            const userAnswer = tfState.answers[statement.id];
+                            const isAnswered = userAnswer !== null && userAnswer !== undefined;
+                            const isCorrect = userAnswer === statement.isTrue;
+
+                            return (
+                              <div key={statement.id} className="flex items-center gap-4 py-3">
+                                <p className="flex-1 text-slate-700">
+                                  {formatText(statement.statement || "")}
+                                </p>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setTrueFalseStates(prev => ({
+                                        ...prev,
+                                        [module.id]: {
+                                          ...prev[module.id] || { showResults: false },
+                                          answers: { ...(prev[module.id]?.answers || {}), [statement.id]: true }
+                                        }
+                                      }));
+                                    }}
+                                    className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                      tfState.showResults && isAnswered
+                                        ? userAnswer === true
+                                          ? isCorrect
+                                            ? "border-green-500 bg-green-50 text-green-700"
+                                            : "border-red-500 bg-red-50 text-red-700"
+                                          : statement.isTrue
+                                            ? "border-green-500 bg-green-50 text-green-700"
+                                            : "border-slate-200 text-slate-400"
+                                        : userAnswer === true
+                                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                                          : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                    }`}
+                                  >
+                                    True
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setTrueFalseStates(prev => ({
+                                        ...prev,
+                                        [module.id]: {
+                                          ...prev[module.id] || { showResults: false },
+                                          answers: { ...(prev[module.id]?.answers || {}), [statement.id]: false }
+                                        }
+                                      }));
+                                    }}
+                                    className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                      tfState.showResults && isAnswered
+                                        ? userAnswer === false
+                                          ? isCorrect
+                                            ? "border-green-500 bg-green-50 text-green-700"
+                                            : "border-red-500 bg-red-50 text-red-700"
+                                          : !statement.isTrue
+                                            ? "border-green-500 bg-green-50 text-green-700"
+                                            : "border-slate-200 text-slate-400"
+                                        : userAnswer === false
+                                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                                          : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                    }`}
+                                  >
+                                    False
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                            {item.caption && (
-                              <p className={`font-semibold text-slate-800 text-center ${
-                                currentModule.content.imageItems.length === 1
-                                  ? "text-3xl"
-                                  : currentModule.content.imageItems.length === 2
-                                  ? "text-2xl"
-                                  : "text-xl"
-                              }`}>{item.caption}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setTrueFalseStates(prev => ({
+                              ...prev,
+                              [module.id]: {
+                                ...prev[module.id] || { answers: {} },
+                                showResults: !prev[module.id]?.showResults
+                              }
+                            }));
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          {trueFalseStates[module.id]?.showResults ? "Hide Results" : "Check Answers"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Image Choice Module */}
+                    {module.type === "imagechoice" && (
+                      <div className="space-y-4">
+                        {module.content.imageChoiceTitle && (
+                          <h3 className="text-lg font-medium text-slate-800 mb-4">
+                            {module.content.imageChoiceTitle}
+                          </h3>
+                        )}
+
+                        {module.content.imageChoiceItems && module.content.imageChoiceItems.length > 0 && (
+                          <div className={`grid gap-4 ${
+                            module.content.imageChoiceItems.length === 1
+                              ? "grid-cols-1 max-w-sm mx-auto"
+                              : module.content.imageChoiceItems.length === 2
+                              ? "grid-cols-2 max-w-2xl mx-auto"
+                              : module.content.imageChoiceItems.length === 3
+                              ? "grid-cols-3"
+                              : module.content.imageChoiceItems.length === 4
+                              ? "grid-cols-2"
+                              : "grid-cols-3"
+                          }`}>
+                            {module.content.imageChoiceItems.map((item: ImageChoiceItem) => {
+                              const icState = imageChoiceStates[module.id] || { selections: {}, shuffledOptions: {}, showResults: false };
+                              const selectedValue = icState.selections[item.id] || "";
+                              const isCorrect = selectedValue === item.correctOption;
+                              const allOptions = icState.shuffledOptions[item.id] || [item.correctOption, ...item.options].filter(o => o);
+
+                              return (
+                                <div key={item.id} className="flex flex-col">
+                                  {/* Image */}
+                                  <div className="aspect-square rounded-lg overflow-hidden bg-slate-100 border border-slate-200 mb-2">
+                                    {item.imageUrl ? (
+                                      <img
+                                        src={item.imageUrl}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-4xl text-slate-400">image</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Dropdown */}
+                                  <div className="relative">
+                                    <select
+                                      value={selectedValue}
+                                      onChange={(e) => {
+                                        setImageChoiceStates(prev => ({
+                                          ...prev,
+                                          [module.id]: {
+                                            ...prev[module.id] || { showResults: false },
+                                            selections: { ...(prev[module.id]?.selections || {}), [item.id]: e.target.value }
+                                          }
+                                        }));
+                                      }}
+                                      className={`w-full px-3 py-2 rounded-lg border text-sm appearance-none cursor-pointer transition-colors ${
+                                        icState.showResults && selectedValue
+                                          ? isCorrect
+                                            ? "border-green-500 bg-green-50 text-green-700"
+                                            : "border-red-500 bg-red-50 text-red-700"
+                                          : selectedValue
+                                            ? "border-blue-500 bg-blue-50 text-blue-700"
+                                            : "border-slate-200 text-slate-600"
+                                      }`}
+                                    >
+                                      <option value="">Select...</option>
+                                      {allOptions.map((opt, i) => (
+                                        <option key={i} value={opt}>{opt}</option>
+                                      ))}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[18px]">
+                                      expand_more
+                                    </span>
+                                  </div>
+
+                                  {/* Show correct answer if wrong */}
+                                  {icState.showResults && selectedValue && !isCorrect && (
+                                    <p className="text-xs text-green-600 mt-1 font-medium">
+                                      {item.correctOption}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Check Answers Button - Bottom */}
+                        <button
+                          onClick={() => {
+                            setImageChoiceStates(prev => ({
+                              ...prev,
+                              [module.id]: {
+                                ...prev[module.id] || { selections: {}, shuffledOptions: {} },
+                                showResults: !prev[module.id]?.showResults
+                              }
+                            }));
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          {imageChoiceStates[module.id]?.showResults ? "Hide Results" : "Check Answers"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Inline Choice Module */}
+                    {module.type === "inlinechoice" && (
+                      <div className="space-y-4">
+                        {module.content.inlineChoiceTitle && (
+                          <h3 className="text-lg font-medium text-slate-800 mb-4">
+                            {module.content.inlineChoiceTitle}
+                          </h3>
+                        )}
+
+                        {/* Sentences */}
+                        <div className="space-y-4">
+                          {module.content.inlineChoiceSentences?.map((sentence: InlineChoiceSentence, sentenceIndex: number) => {
+                            const icState = inlineChoiceStates[module.id] || { selections: {}, shuffledOptions: {}, showResults: false };
+
+                            // Parse the sentence and replace 1., 2., etc. with dropdowns
+                            const parts = sentence.text.split(/(\d+\.)/g);
+
+                            return (
+                              <p key={sentence.id} className="text-slate-700 leading-loose">
+                                <span className="font-semibold text-slate-500 mr-2">{sentenceIndex + 1}.</span>
+                                {parts.map((part, partIndex) => {
+                                  const match = part.match(/^(\d+)\.$/);
+                                  if (match) {
+                                    const blankIndex = parseInt(match[1]) - 1; // Convert 1-based to 0-based
+                                    const blank = sentence.blanks[blankIndex];
+                                    if (!blank) return null;
+
+                                    const selectedValue = icState.selections[sentence.id]?.[blankIndex] || "";
+                                    const isCorrect = selectedValue === blank.correctAnswer;
+                                    const options = icState.shuffledOptions[sentence.id]?.[blankIndex] || [blank.correctAnswer, ...blank.options].filter(o => o);
+
+                                    return (
+                                      <span key={partIndex} className="inline-flex items-center align-middle mx-1">
+                                        <span className="relative inline-block">
+                                          <select
+                                            value={selectedValue}
+                                            onChange={(e) => {
+                                              setInlineChoiceStates(prev => ({
+                                                ...prev,
+                                                [module.id]: {
+                                                  ...prev[module.id] || { shuffledOptions: {}, showResults: false },
+                                                  selections: {
+                                                    ...(prev[module.id]?.selections || {}),
+                                                    [sentence.id]: {
+                                                      ...(prev[module.id]?.selections?.[sentence.id] || {}),
+                                                      [blankIndex]: e.target.value
+                                                    }
+                                                  }
+                                                }
+                                              }));
+                                            }}
+                                            className={`px-2 py-0.5 pr-6 rounded border text-sm appearance-none cursor-pointer transition-colors ${
+                                              icState.showResults && selectedValue
+                                                ? isCorrect
+                                                  ? "border-green-500 bg-green-50 text-green-700"
+                                                  : "border-red-500 bg-red-50 text-red-700"
+                                                : selectedValue
+                                                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                                                  : "border-slate-300 text-slate-600"
+                                            }`}
+                                          >
+                                            <option value="">Select...</option>
+                                            {options.map((opt, i) => (
+                                              <option key={i} value={opt}>{opt}</option>
+                                            ))}
+                                          </select>
+                                          <span className="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[14px]">
+                                            expand_more
+                                          </span>
+                                        </span>
+                                        {icState.showResults && selectedValue && !isCorrect && (
+                                          <span className="text-green-600 text-xs font-medium ml-1">
+                                            {blank.correctAnswer}
+                                          </span>
+                                        )}
+                                      </span>
+                                    );
+                                  }
+                                  return <span key={partIndex}>{part}</span>;
+                                })}
+                              </p>
+                            );
+                          })}
+                        </div>
+
+                        {/* Check Answers Button - Bottom */}
+                        <button
+                          onClick={() => {
+                            setInlineChoiceStates(prev => ({
+                              ...prev,
+                              [module.id]: {
+                                ...prev[module.id] || { selections: {}, shuffledOptions: {} },
+                                showResults: !prev[module.id]?.showResults
+                              }
+                            }));
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          {inlineChoiceStates[module.id]?.showResults ? "Hide Results" : "Check Answers"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Matching Module */}
+                    {module.type === "matching" && (
+                      <div className="space-y-4">
+                        {matchingStates[module.id]?.matchedPairs && matchingStates[module.id].matchedPairs.size > 0 && (
+                          <p className="text-sm text-green-600 font-medium">
+                            {matchingStates[module.id].matchedPairs.size} / {module.content.pairs?.length} matched
+                            {matchingStates[module.id].matchedPairs.size === module.content.pairs?.length && " - Complete!"}
+                          </p>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Left Column */}
+                          <div className="space-y-2">
+                            {matchingStates[module.id]?.shuffledLeftItems.map((item: any, i: number) => {
+                              const state = matchingStates[module.id];
+                              const isMatched = state?.matchedPairs.has(`${item.originalIndex}`);
+                              const isSelected = state?.selectedLeft === i;
+                              return (
+                                <button
+                                  key={item.id}
+                                  onClick={() => handleMatchingClick(module.id, "left", item, i, module.content.pairs)}
+                                  disabled={isMatched}
+                                  className={`w-full p-3 rounded-lg border transition-all min-h-[60px] flex items-center justify-center ${
+                                    isMatched
+                                      ? "border-green-500 bg-green-50 text-green-700"
+                                      : isSelected
+                                      ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
+                                      : "border-slate-200 hover:border-blue-300 hover:bg-blue-50/50"
+                                  }`}
+                                >
+                                  {item.image ? (
+                                    <img src={item.image} alt="Left" className="max-h-16 max-w-full object-contain" />
+                                  ) : (
+                                    <span className="text-sm font-medium">{item.text}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Right Column */}
+                          <div className="space-y-2">
+                            {matchingStates[module.id]?.shuffledRightItems.map((item: any, i: number) => {
+                              const state = matchingStates[module.id];
+                              const isMatched = state?.matchedPairs.has(`${item.originalIndex}`);
+                              const isSelected = state?.selectedRight === i;
+                              return (
+                                <button
+                                  key={item.id}
+                                  onClick={() => handleMatchingClick(module.id, "right", item, i, module.content.pairs)}
+                                  disabled={isMatched}
+                                  className={`w-full p-3 rounded-lg border transition-all min-h-[60px] flex items-center justify-center ${
+                                    isMatched
+                                      ? "border-green-500 bg-green-50 text-green-700"
+                                      : isSelected
+                                      ? "border-purple-500 bg-purple-50 text-purple-700 shadow-sm"
+                                      : "border-slate-200 hover:border-purple-300 hover:bg-purple-50/50"
+                                  }`}
+                                >
+                                  {item.image ? (
+                                    <img src={item.image} alt="Right" className="max-h-16 max-w-full object-contain" />
+                                  ) : (
+                                    <span className="text-sm font-medium">{item.text}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Audio Module */}
+                    {module.type === "audio" && (
+                      <div className="py-4">
+                        {module.content.audioItems && module.content.audioItems.length > 0 ? (
+                          <div className={`grid gap-6 ${
+                            module.content.audioItems.length === 1
+                              ? "grid-cols-1 max-w-xs"
+                              : module.content.audioItems.length === 2
+                              ? "grid-cols-2 max-w-md"
+                              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+                          }`}>
+                            {module.content.audioItems.map((item: AudioItem) => (
+                              <div key={item.id} className="flex flex-col items-center">
+                                <button
+                                  onClick={() => playAudio(item.audioUrl)}
+                                  className="size-20 rounded-full bg-blue-500 hover:bg-blue-600 active:scale-95 flex items-center justify-center mb-3 transition-all shadow-md"
+                                >
+                                  <span className="material-symbols-outlined text-white text-4xl">volume_up</span>
+                                </button>
+                                {item.title && (
+                                  <p className="text-sm font-medium text-slate-700 text-center">{item.title}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-sm">No audio items added</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Image Module */}
+                    {module.type === "image" && (
+                      <div className="py-2">
+                        {module.content.imageItems && module.content.imageItems.length > 0 ? (
+                          <>
+                            {/* Single image - full width display */}
+                            {module.content.imageItems.length === 1 ? (
+                              <div className="flex flex-col items-center">
+                                {module.content.imageItems.map((item: ImageItem) => (
+                                  <div key={item.id} className="w-full flex flex-col items-center">
+                                    {item.imageUrl ? (
+                                      <div className={`rounded-lg overflow-hidden border border-slate-200 ${
+                                        item.orientation === "portrait"
+                                          ? "h-[70vh] w-auto"
+                                          : "w-full"
+                                      }`}>
+                                        <img
+                                          src={item.imageUrl}
+                                          alt={item.caption || "Image"}
+                                          className={`${
+                                            item.orientation === "portrait"
+                                              ? "h-full w-auto object-contain"
+                                              : "w-full h-auto object-contain"
+                                          }`}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="w-full h-64 flex items-center justify-center bg-slate-100 rounded-lg">
+                                        <span className="material-symbols-outlined text-4xl text-slate-400">image</span>
+                                      </div>
+                                    )}
+                                    {item.caption && (
+                                      <p className="mt-3 text-sm font-medium text-slate-700 text-center">{item.caption}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : module.content.imageItems.length === 2 ? (
+                              /* Two images - larger side by side display */
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {module.content.imageItems.map((item: ImageItem) => (
+                                  <div key={item.id} className="flex flex-col">
+                                    <div className={`rounded-lg overflow-hidden border border-slate-200 ${
+                                      item.orientation === "portrait"
+                                        ? "h-[50vh] flex justify-center bg-slate-50"
+                                        : "w-full"
+                                    }`}>
+                                      {item.imageUrl ? (
+                                        <img
+                                          src={item.imageUrl}
+                                          alt={item.caption || "Image"}
+                                          className={`${
+                                            item.orientation === "portrait"
+                                              ? "h-full w-auto object-contain"
+                                              : "w-full h-auto object-contain"
+                                          }`}
+                                        />
+                                      ) : (
+                                        <div className="w-full h-64 flex items-center justify-center bg-slate-100">
+                                          <span className="material-symbols-outlined text-4xl text-slate-400">image</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {item.caption && (
+                                      <p className="mt-2 text-sm font-medium text-slate-700 text-center">{item.caption}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              /* 3+ images - grid display */
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                {module.content.imageItems.map((item: ImageItem) => (
+                                  <div key={item.id} className="flex flex-col">
+                                    <div className={`rounded-lg overflow-hidden bg-slate-100 border border-slate-200 ${
+                                      item.orientation === "portrait" ? "aspect-[3/4]" : "aspect-video"
+                                    }`}>
+                                      {item.imageUrl ? (
+                                        <img
+                                          src={item.imageUrl}
+                                          alt={item.caption || "Image"}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <span className="material-symbols-outlined text-4xl text-slate-400">image</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {item.caption && (
+                                      <p className="mt-2 text-sm font-medium text-slate-700 text-center">{item.caption}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="w-full h-96 bg-slate-100 rounded-xl flex items-center justify-center">
-                          <div className="text-center">
-                            <span className="material-symbols-outlined text-6xl text-slate-400 mb-4">
-                              image
-                            </span>
-                            <p className="text-slate-500">No images added</p>
-                          </div>
-                        </div>
+                          </>
+                        ) : (
+                          <p className="text-slate-500 text-sm">No images added</p>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* PDF Module */}
-                {currentModule.type === "pdf" && (
-                  <div className="w-full h-[700px]">
-                    {currentModule.content.pdfUrl ? (
-                      <iframe
-                        src={currentModule.content.pdfUrl}
-                        className="w-full h-full rounded-xl border border-slate-200"
-                        title={currentModule.content.pdfName || "PDF Document"}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center">
-                        <div className="text-center">
-                          <span className="material-symbols-outlined text-6xl text-slate-400 mb-4">
-                            picture_as_pdf
-                          </span>
-                          <p className="text-slate-500">No PDF uploaded</p>
-                        </div>
+                    {/* PDF Module */}
+                    {module.type === "pdf" && (
+                      <div>
+                        {module.content.pdfUrl ? (
+                          <iframe
+                            src={module.content.pdfUrl}
+                            className="w-full h-[500px] lg:h-[700px] rounded-lg border border-slate-200"
+                            title={module.content.pdfName || "PDF Document"}
+                          />
+                        ) : (
+                          <p className="text-slate-500 text-sm">No PDF uploaded</p>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Wordwall Module */}
-                {currentModule.type === "wordwall" && currentModule.content?.wordwallIframe && (
-                  <div className="flex items-center justify-center w-full">
-                    <div className="w-full max-w-3xl h-[600px]">
-                      <div
-                        className="w-full h-full flex items-center justify-center"
-                        dangerouslySetInnerHTML={{
-                          __html: currentModule.content.wordwallIframe
-                            .replace(/width="[^"]*"/g, 'width="100%"')
-                            .replace(/height="[^"]*"/g, 'height="100%"')
-                            .replace(/style="[^"]*"/g, 'style="width:100%;height:100%"')
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                    {/* Wordwall Module */}
+                    {module.type === "wordwall" && module.content?.wordwallIframe && (
+                      <div className="w-full h-[400px] lg:h-[500px]">
+                        <div
+                          className="w-full h-full"
+                          dangerouslySetInnerHTML={{
+                            __html: module.content.wordwallIframe
+                              .replace(/width="[^"]*"/g, 'width="100%"')
+                              .replace(/height="[^"]*"/g, 'height="100%"')
+                              .replace(/style="[^"]*"/g, 'style="width:100%;height:100%"')
+                          }}
+                        />
+                      </div>
+                    )}
 
-                {/* Baamboozle Module */}
-                {currentModule.type === "baamboozle" && currentModule.content?.baamboozleUrl && (
-                  <div className="flex items-center justify-center w-full">
-                    <div className="w-full max-w-2xl">
-                      <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-                        <div className="size-20 mx-auto mb-6 bg-pink-100 rounded-full flex items-center justify-center">
-                          <span className="material-symbols-outlined text-4xl text-pink-600">casino</span>
-                        </div>
-                        <h3 className="text-2xl font-bold text-slate-800 mb-3">Baamboozle Activity</h3>
-                        <p className="text-slate-600 mb-6">Click the button below to open the activity in a new tab</p>
+                    {/* Baamboozle Module */}
+                    {module.type === "baamboozle" && module.content?.baamboozleUrl && (
+                      <div className="py-4">
                         <a
-                          href={currentModule.content.baamboozleUrl}
+                          href={module.content.baamboozleUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-8 py-4 bg-pink-600 hover:bg-pink-700 text-white rounded-xl font-semibold text-lg transition-colors"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-medium transition-colors"
                         >
-                          <span className="material-symbols-outlined">open_in_new</span>
-                          Open Baamboozle
+                          <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                          Open Baamboozle Activity
                         </a>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Quizlet Module */}
-                {currentModule.type === "quizlet" && currentModule.content?.quizletIframe && (
-                  <div className="flex items-center justify-center w-full">
-                    <div className="w-full max-w-3xl h-[600px]">
-                      <div
-                        className="w-full h-full flex items-center justify-center [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:rounded-xl"
-                        dangerouslySetInnerHTML={{
-                          __html: currentModule.content.quizletIframe
-                            .replace(/width="[^"]*"/g, 'width="100%"')
-                            .replace(/height="[^"]*"/g, 'height="100%"')
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                    {/* Quizlet Module */}
+                    {module.type === "quizlet" && module.content?.quizletIframe && (
+                      <div className="w-full h-[400px] lg:h-[500px]">
+                        <div
+                          className="w-full h-full [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:rounded-lg"
+                          dangerouslySetInnerHTML={{
+                            __html: module.content.quizletIframe
+                              .replace(/width="[^"]*"/g, 'width="100%"')
+                              .replace(/height="[^"]*"/g, 'height="100%"')
+                          }}
+                        />
+                      </div>
+                    )}
 
-                {/* Genially Module */}
-                {currentModule.type === "genially" && currentModule.content?.geniallyUrl && (
-                  <div className="flex items-center justify-center w-full">
-                    <div className="w-full max-w-4xl h-[600px]">
-                      <iframe
-                        src={currentModule.content.geniallyUrl}
-                        className="w-full h-full rounded-xl border-0"
-                        allowFullScreen
-                      />
-                    </div>
-                  </div>
-                )}
+                    {/* Genially Module */}
+                    {module.type === "genially" && module.content?.geniallyUrl && (
+                      <div className="w-full h-[400px] lg:h-[500px]">
+                        <iframe
+                          src={module.content.geniallyUrl}
+                          className="w-full h-full rounded-lg border-0"
+                          allowFullScreen
+                        />
+                      </div>
+                    )}
 
-                {/* Miro Module */}
-                {currentModule.type === "miro" && currentModule.content?.miroUrl && (
-                  <div className="flex items-center justify-center w-full">
-                    <div className="w-full max-w-5xl h-[600px]">
-                      <iframe
-                        src={(() => {
-                          const url = currentModule.content.miroUrl;
-                          // Convert board URL to live-embed format
-                          if (url.includes('/live-embed/')) return url;
-                          if (url.includes('/app/board/')) {
-                            return url.replace('/app/board/', '/app/live-embed/');
-                          }
-                          return url;
-                        })()}
-                        className="w-full h-full rounded-xl border-0"
-                        allowFullScreen
-                      />
-                    </div>
+                    {/* Miro Module */}
+                    {module.type === "miro" && module.content?.miroUrl && (
+                      <div className="w-full h-[400px] lg:h-[500px]">
+                        <iframe
+                          src={(() => {
+                            const url = module.content.miroUrl;
+                            if (url.includes('/live-embed/')) return url;
+                            if (url.includes('/app/board/')) {
+                              return url.replace('/app/board/', '/app/live-embed/');
+                            }
+                            return url;
+                          })()}
+                          className="w-full h-full rounded-lg border-0"
+                          allowFullScreen
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Bottom Navigation */}
-      <div className="flex-shrink-0 bg-black/20 backdrop-blur-sm border-t border-white/10 px-6 py-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <button
-            onClick={goToPrevious}
-            disabled={isFirstModule}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-            <span>Previous</span>
-          </button>
-
-          {/* Module Dots */}
-          <div className="flex items-center gap-2">
-            {modules.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  setCurrentModuleIndex(index);
-                  setShowAnswer(false);
-                }}
-                className={`size-2 rounded-full transition-all ${
-                  index === currentModuleIndex
-                    ? "bg-white w-6"
-                    : "bg-white/30 hover:bg-white/50"
-                }`}
-              />
-            ))}
+            {/* End of Lesson */}
+            <div className="text-center py-10 mt-6 border-t border-slate-200">
+              <p className="text-slate-500 mb-4">End of lesson</p>
+              <Link
+                href={`/lessons/${params.level}`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                Back to Lessons
+              </Link>
+            </div>
           </div>
-
-          <button
-            onClick={goToNext}
-            disabled={isLastModule}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <span>Next</span>
-            <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
-          </button>
         </div>
       </div>
     </div>

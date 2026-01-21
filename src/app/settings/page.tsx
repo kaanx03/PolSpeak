@@ -227,7 +227,7 @@ export default function SettingsPage() {
       }
 
       // Enroll new factor
-      const friendlyName = `PolSpeak Authenticator ${Date.now()}`;
+      const friendlyName = `NastyKnowledge Authenticator ${Date.now()}`;
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
         friendlyName: friendlyName,

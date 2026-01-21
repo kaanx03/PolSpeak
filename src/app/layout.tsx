@@ -5,13 +5,13 @@ import { LibraryProvider } from "@/contexts/LibraryContext";
 import AuthGuard from "@/components/AuthGuard";
 
 export const metadata: Metadata = {
-  title: "PolSpeak - Learn Polish with Passion",
+  title: "NastyKnowledge - Learn Polish with Passion",
   description: "Interactive Polish language learning platform with lessons, vocabulary, and progress tracking",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "PolSpeak",
+    title: "NastyKnowledge",
   },
   formatDetection: {
     telephone: false,
@@ -61,13 +61,13 @@ export default function RootLayout({
         />
 
         {/* PWA Meta Tags */}
-        <meta name="application-name" content="PolSpeak" />
+        <meta name="application-name" content="NastyKnowledge" />
         <meta name="mobile-web-app-capable" content="yes" />
 
         {/* iOS Specific PWA Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="PolSpeak" />
+        <meta name="apple-mobile-web-app-title" content="NastyKnowledge" />
 
         {/* Splash Screens for iPad */}
         <link rel="apple-touch-startup-image" href="/logo.png" />

@@ -182,14 +182,10 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
       >
         <div className="flex flex-col gap-6 p-4">
           <div className="flex items-center gap-3 px-2">
-            <div className="bg-gradient-to-br from-indigo-500 to-blue-600 aspect-square rounded-xl size-10 flex items-center justify-center shadow-lg shadow-indigo-900/40">
-              <span className="material-symbols-outlined text-white text-xl">
-                school
-              </span>
-            </div>
+            <img src="/logo.png" alt="NastyKnowledge" className="size-10 rounded-xl shadow-lg" />
             <div className="flex flex-col">
               <h1 className="text-white text-lg font-bold leading-tight tracking-tight">
-                PolSpeak
+                NastyKnowledge
               </h1>
               <p className="text-slate-400 text-xs font-normal">Teaching Toolkit</p>
             </div>

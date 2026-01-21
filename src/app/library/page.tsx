@@ -647,7 +647,7 @@ export default function LibraryPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
                 {/* All Files "folder" */}
                 <button
                   onClick={() => setSelectedFolderId(null)}
@@ -1055,12 +1055,25 @@ export default function LibraryPage() {
                   {selectedFile.category} · {formatFileSize(selectedFile.size)}
                 </p>
               </div>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="size-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {selectedFile.type === "pdf" && (
+                  <a
+                    href={selectedFile.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-10 px-3 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600 gap-2 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                    <span className="hidden sm:inline text-sm font-medium">Open in new tab</span>
+                  </a>
+                )}
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="size-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
@@ -1070,7 +1083,7 @@ export default function LibraryPage() {
               )}
               {selectedFile.type === "pdf" && (
                 <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedFile.url)}&embedded=true`}
+                  src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(selectedFile.url)}`}
                   className="w-full h-[70vh] min-h-[400px] rounded-lg bg-white border-0"
                   title={selectedFile.name}
                 />

@@ -126,13 +126,9 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-lg px-4 sm:px-6">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl w-12 h-12 flex items-center justify-center border border-white/20">
-            <span className="material-symbols-outlined text-white text-2xl">
-              school
-            </span>
-          </div>
+          <img src="/logo.png" alt="NastyKnowledge" className="w-12 h-12 rounded-xl" />
           <div>
-            <h1 className="text-white text-2xl font-bold">PolSpeak</h1>
+            <h1 className="text-white text-2xl font-bold">NastyKnowledge</h1>
             <p className="text-white/70 text-xs">Learn Polish with Passion</p>
           </div>
         </div>
@@ -322,7 +318,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-white/50 text-xs mt-6">
-          © 2025 PolSpeak. All rights reserved.
+          © 2025 NastyKnowledge. All rights reserved.
         </p>
       </div>
     </div>

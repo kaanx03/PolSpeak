@@ -318,8 +318,20 @@ export async function updateLesson(id: string, updates: Partial<Lesson>) {
   return data;
 }
 
-// Delete lesson
+// Delete lesson (also removes related lesson history entries)
 export async function deleteLesson(id: string) {
+  // First, delete any related lesson history entries
+  const { error: historyError } = await supabase
+    .from('lesson_history')
+    .delete()
+    .eq('lesson_id', id);
+
+  if (historyError) {
+    console.error('Error deleting lesson history:', historyError);
+    // Continue with lesson deletion even if history deletion fails
+  }
+
+  // Then delete the lesson itself
   const { error } = await supabase
     .from('lessons')
     .delete()
