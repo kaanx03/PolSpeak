@@ -75,14 +75,6 @@ export default function PresentationPage() {
   const [activeModuleIndex, setActiveModuleIndex] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const moduleRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [isIOS, setIsIOS] = useState(false);
-
-  // Detect iOS devices
-  useEffect(() => {
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    setIsIOS(iOS);
-  }, []);
 
   // Load lesson from Supabase
   useEffect(() => {
@@ -1159,15 +1151,7 @@ export default function PresentationPage() {
                     {module.type === "pdf" && (
                       <div>
                         {module.content.pdfUrl ? (
-                          isIOS ? (
-                            <PdfViewer url={module.content.pdfUrl} className="h-[500px] lg:h-[700px]" />
-                          ) : (
-                            <iframe
-                              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(module.content.pdfUrl)}`}
-                              className="w-full h-[500px] lg:h-[700px] rounded-lg border border-slate-200"
-                              title={module.content.pdfName || "PDF Document"}
-                            />
-                          )
+                          <PdfViewer url={module.content.pdfUrl} className="h-[500px] lg:h-[700px]" />
                         ) : (
                           <p className="text-slate-500 text-sm">No PDF uploaded</p>
                         )}

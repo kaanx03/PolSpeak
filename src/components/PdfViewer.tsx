@@ -77,6 +77,7 @@ export default function PdfViewer({ url, className = "" }: PdfViewerProps) {
           await page.render({
             canvasContext: context,
             viewport: scaledViewport,
+            canvas: canvas,
           }).promise;
         }
 

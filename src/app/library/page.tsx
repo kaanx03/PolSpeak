@@ -59,16 +59,9 @@ export default function LibraryPage() {
   const [folderToDelete, setFolderToDelete] = useState<LibraryFolder | null>(null);
   const [showMoveToFolderMenu, setShowMoveToFolderMenu] = useState<string | null>(null);
 
-  // iOS detection
-  const [isIOS, setIsIOS] = useState(false);
-
   // Fix hydration mismatch
   useEffect(() => {
     setMounted(true);
-    // Detect iOS devices
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    setIsIOS(iOS);
   }, []);
 
   const formatFileSize = (bytes: number): string => {
@@ -1093,15 +1086,7 @@ export default function LibraryPage() {
                 <img src={selectedFile.url} alt={selectedFile.name} className="w-full h-auto rounded-lg" />
               )}
               {selectedFile.type === "pdf" && (
-                isIOS ? (
-                  <PdfViewer url={selectedFile.url} className="h-[70vh] min-h-[400px]" />
-                ) : (
-                  <iframe
-                    src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(selectedFile.url)}`}
-                    className="w-full h-[70vh] min-h-[400px] rounded-lg bg-white border-0"
-                    title={selectedFile.name}
-                  />
-                )
+                <PdfViewer url={selectedFile.url} className="h-[70vh] min-h-[400px]" />
               )}
               {selectedFile.type === "audio" && (
                 <div className="flex flex-col items-center justify-center h-64">
