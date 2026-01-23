@@ -5,6 +5,8 @@ import Sidebar from "@/components/Sidebar";
 import { useLibrary, LibraryFile, LibraryFolder } from "@/contexts/LibraryContext";
 import { uploadFile, createLibraryFile } from "@/lib/supabase-helpers";
 import { processFileForUpload } from "@/lib/image-compression";
+import PdfThumbnail from "@/components/PdfThumbnail";
+import PdfViewer from "@/components/PdfViewer";
 
 const FOLDER_COLORS = [
   { name: "Blue", value: "bg-blue-500" },
@@ -501,6 +503,8 @@ export default function LibraryPage() {
           >
             {file.type === "image" ? (
               <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+            ) : file.type === "pdf" ? (
+              <PdfThumbnail url={file.url} className="w-full h-full" />
             ) : (
               <span className={`material-symbols-outlined text-4xl ${iconData.text}`}>{iconData.icon}</span>
             )}
@@ -1090,12 +1094,7 @@ export default function LibraryPage() {
               )}
               {selectedFile.type === "pdf" && (
                 isIOS ? (
-                  <iframe
-                    src={selectedFile.url}
-                    className="w-full h-[70vh] min-h-[400px] rounded-lg bg-white border-0"
-                    title={selectedFile.name}
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  />
+                  <PdfViewer url={selectedFile.url} className="h-[70vh] min-h-[400px]" />
                 ) : (
                   <iframe
                     src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(selectedFile.url)}`}
