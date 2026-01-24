@@ -5,7 +5,6 @@ import Sidebar from "@/components/Sidebar";
 import { useLibrary, LibraryFile, LibraryFolder } from "@/contexts/LibraryContext";
 import { uploadFile, createLibraryFile } from "@/lib/supabase-helpers";
 import { processFileForUpload } from "@/lib/image-compression";
-import PdfThumbnail from "@/components/PdfThumbnail";
 import PdfViewer from "@/components/PdfViewer";
 
 const FOLDER_COLORS = [
@@ -496,8 +495,6 @@ export default function LibraryPage() {
           >
             {file.type === "image" ? (
               <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
-            ) : file.type === "pdf" ? (
-              <PdfThumbnail url={file.url} className="w-full h-full" />
             ) : (
               <span className={`material-symbols-outlined text-4xl ${iconData.text}`}>{iconData.icon}</span>
             )}

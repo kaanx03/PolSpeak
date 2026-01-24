@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
+import { useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
 
-// Set worker source from public folder
-if (typeof window !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-}
+// Set worker source
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfViewerProps {
   url: string;
@@ -14,119 +12,19 @@ interface PdfViewerProps {
 }
 
 export default function PdfViewer({ url, className = "" }: PdfViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [numPages, setNumPages] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setLoading(false);
+  };
 
-    const loadPdf = async () => {
-      if (!url) return;
-
-      try {
-        setLoading(true);
-        setError(false);
-
-        const loadingTask = pdfjsLib.getDocument(url);
-        const pdf = await loadingTask.promise;
-
-        if (!isMounted) return;
-
-        setNumPages(pdf.numPages);
-        canvasRefs.current = new Array(pdf.numPages).fill(null);
-
-        // Render all pages
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          if (!isMounted) return;
-
-          const page = await pdf.getPage(pageNum);
-
-          // Wait for canvas to be available
-          await new Promise<void>((resolve) => {
-            const checkCanvas = () => {
-              if (canvasRefs.current[pageNum - 1] || !isMounted) {
-                resolve();
-              } else {
-                requestAnimationFrame(checkCanvas);
-              }
-            };
-            checkCanvas();
-          });
-
-          if (!isMounted) return;
-
-          const canvas = canvasRefs.current[pageNum - 1];
-          if (!canvas) continue;
-
-          const context = canvas.getContext("2d");
-          if (!context) continue;
-
-          // Calculate scale based on container width
-          const containerWidth = containerRef.current?.clientWidth || 800;
-          const viewport = page.getViewport({ scale: 1 });
-          const scale = (containerWidth - 32) / viewport.width; // 32px for padding
-          const scaledViewport = page.getViewport({ scale });
-
-          canvas.width = scaledViewport.width;
-          canvas.height = scaledViewport.height;
-
-          await page.render({
-            canvasContext: context,
-            viewport: scaledViewport,
-            canvas: canvas,
-          }).promise;
-        }
-
-        if (isMounted) {
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Error loading PDF:", err);
-        if (isMounted) {
-          setError(true);
-          setLoading(false);
-        }
-      }
-    };
-
-    loadPdf();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [url]);
-
-  // Track scroll to update current page
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || numPages === 0) return;
-
-    const handleScroll = () => {
-      const scrollTop = container.scrollTop;
-      const containerHeight = container.clientHeight;
-
-      // Find which page is most visible
-      let cumulativeHeight = 0;
-      for (let i = 0; i < canvasRefs.current.length; i++) {
-        const canvas = canvasRefs.current[i];
-        if (canvas) {
-          const pageHeight = canvas.height + 16; // 16px gap
-          if (scrollTop < cumulativeHeight + pageHeight - containerHeight / 2) {
-            setCurrentPage(i + 1);
-            break;
-          }
-          cumulativeHeight += pageHeight;
-        }
-      }
-    };
-
-    container.addEventListener("scroll", handleScroll);
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, [numPages]);
+  const onDocumentLoadError = () => {
+    setError(true);
+    setLoading(false);
+  };
 
   if (error) {
     return (
@@ -149,41 +47,44 @@ export default function PdfViewer({ url, className = "" }: PdfViewerProps) {
 
   return (
     <div className={`relative ${className}`}>
-      {/* Page indicator */}
-      {numPages > 0 && (
-        <div className="sticky top-2 z-10 flex justify-center mb-2">
-          <span className="px-3 py-1 bg-black/70 text-white text-sm rounded-full">
-            {currentPage} / {numPages}
-          </span>
+      {/* Loading indicator */}
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-10">
+          <div className="size-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-slate-500">Loading PDF...</p>
         </div>
       )}
 
-      {/* PDF Container */}
-      <div
-        ref={containerRef}
-        className="overflow-y-auto h-full"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        {loading && (
-          <div className="flex flex-col items-center justify-center h-64">
-            <div className="size-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-slate-500">Loading PDF...</p>
-          </div>
-        )}
-
-        {/* Canvas elements for each page */}
-        <div className="flex flex-col items-center gap-4 pb-4">
-          {Array.from({ length: numPages }, (_, i) => (
-            <canvas
-              key={i}
-              ref={(el) => {
-                canvasRefs.current[i] = el;
-              }}
-              className={`shadow-lg bg-white ${loading ? "hidden" : "block"}`}
+      {/* PDF Document */}
+      <div className="overflow-y-auto h-full" style={{ WebkitOverflowScrolling: "touch" }}>
+        <Document
+          file={url}
+          onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={onDocumentLoadError}
+          loading={null}
+          className="flex flex-col items-center gap-4 pb-4"
+        >
+          {Array.from(new Array(numPages), (_, index) => (
+            <Page
+              key={`page_${index + 1}`}
+              pageNumber={index + 1}
+              className="shadow-lg"
+              width={Math.min(typeof window !== "undefined" ? window.innerWidth - 64 : 600, 800)}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
             />
           ))}
-        </div>
+        </Document>
       </div>
+
+      {/* Page count indicator */}
+      {numPages > 0 && !loading && (
+        <div className="sticky bottom-4 flex justify-center">
+          <span className="px-3 py-1 bg-black/70 text-white text-sm rounded-full">
+            {numPages} pages
+          </span>
+        </div>
+      )}
     </div>
   );
 }
