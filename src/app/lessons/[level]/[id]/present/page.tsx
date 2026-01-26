@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { fetchLessonContentById } from "@/lib/supabase-helpers";
 import PdfViewer from "@/components/PdfViewer";
+import WaveformPlayer from "@/components/WaveformPlayer";
 
 interface AudioItem {
   id: string;
@@ -46,7 +47,7 @@ interface InlineChoiceSentence {
 
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice" | "youtube" | "vocabulary";
   content: any;
 }
 
@@ -96,6 +97,11 @@ export default function PresentationPage() {
 
   // Audio management
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
 
   // Matching game state - per module
   const [matchingStates, setMatchingStates] = useState<{ [moduleId: string]: {
@@ -256,14 +262,73 @@ export default function PresentationPage() {
     setShowAnswers(prev => ({ ...prev, [moduleId]: !prev[moduleId] }));
   };
 
-  const playAudio = (audioUrl: string) => {
+  const toggleAudio = (audioUrl: string) => {
+    // If clicking the same audio that's currently loaded
+    if (currentAudioRef.current && currentAudioUrl === audioUrl) {
+      if (isAudioPlaying) {
+        currentAudioRef.current.pause();
+        setIsAudioPlaying(false);
+      } else {
+        currentAudioRef.current.play();
+        setIsAudioPlaying(true);
+      }
+      return;
+    }
+
+    // Stop any currently playing audio
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
+
+    // Reset progress
+    setAudioProgress(0);
+    setAudioCurrentTime(0);
+    setAudioDuration(0);
+
+    // Create new audio and play
     const audio = new Audio(audioUrl);
     currentAudioRef.current = audio;
+    setCurrentAudioUrl(audioUrl);
+    setIsAudioPlaying(true);
+
+    // Handle metadata loaded (duration)
+    audio.onloadedmetadata = () => {
+      setAudioDuration(audio.duration);
+    };
+
+    // Handle time update (progress)
+    audio.ontimeupdate = () => {
+      setAudioCurrentTime(audio.currentTime);
+      if (audio.duration) {
+        setAudioProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
+
+    // Handle when audio ends
+    audio.onended = () => {
+      setIsAudioPlaying(false);
+      setAudioProgress(0);
+      setAudioCurrentTime(0);
+    };
+
     audio.play();
+  };
+
+  const seekAudio = (audioUrl: string, percent: number) => {
+    if (currentAudioRef.current && currentAudioUrl === audioUrl) {
+      const newTime = (percent / 100) * audioDuration;
+      currentAudioRef.current.currentTime = newTime;
+      setAudioCurrentTime(newTime);
+      setAudioProgress(percent);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const scrollToModule = (index: number) => {
@@ -349,6 +414,8 @@ export default function PresentationPage() {
       quizlet: "Quizlet",
       genially: "Genially",
       miro: "Miro Board",
+      youtube: "YouTube Video",
+      vocabulary: "Vocabulary Cards",
     };
     return names[type] || type;
   };
@@ -1026,36 +1093,34 @@ export default function PresentationPage() {
                                 ? "grid-cols-2 max-w-md"
                                 : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
                             }`}>
-                              {module.content.audioItems.map((item: AudioItem) => (
-                                <div key={item.id} className="flex flex-col items-center">
-                                  <button
-                                    onClick={() => playAudio(item.audioUrl)}
-                                    className="size-20 rounded-full bg-blue-500 hover:bg-blue-600 active:scale-95 flex items-center justify-center mb-3 transition-all shadow-md"
-                                  >
-                                    <span className="material-symbols-outlined text-white text-4xl">volume_up</span>
-                                  </button>
-                                  {item.title && (
-                                    <p className="text-sm font-medium text-slate-700 text-center">{item.title}</p>
-                                  )}
-                                </div>
-                              ))}
+                              {module.content.audioItems.map((item: AudioItem) => {
+                                const isThisPlaying = currentAudioUrl === item.audioUrl && isAudioPlaying;
+                                return (
+                                  <div key={item.id} className="flex flex-col items-center">
+                                    <button
+                                      onClick={() => toggleAudio(item.audioUrl)}
+                                      className={`size-20 rounded-full ${isThisPlaying ? 'bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} active:scale-95 flex items-center justify-center mb-3 transition-all shadow-md`}
+                                    >
+                                      <span className="material-symbols-outlined text-white text-4xl">
+                                        {isThisPlaying ? 'pause' : 'volume_up'}
+                                      </span>
+                                    </button>
+                                    {item.title && (
+                                      <p className="text-sm font-medium text-slate-700 text-center">{item.title}</p>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (
-                            /* Controls Mode - Full audio player */
+                            /* Controls Mode - Full audio player with waveform */
                             <div className="space-y-4 max-w-2xl">
                               {module.content.audioItems.map((item: AudioItem) => (
-                                <div key={item.id} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                                  {item.title && (
-                                    <p className="text-sm font-semibold text-slate-700 mb-3">{item.title}</p>
-                                  )}
-                                  <audio
-                                    controls
-                                    className="w-full h-12"
-                                    src={item.audioUrl}
-                                  >
-                                    Your browser does not support the audio element.
-                                  </audio>
-                                </div>
+                                <WaveformPlayer
+                                  key={item.id}
+                                  audioUrl={item.audioUrl}
+                                  title={item.title}
+                                />
                               ))}
                             </div>
                           )
@@ -1268,6 +1333,67 @@ export default function PresentationPage() {
                             allowFullScreen
                           />
                         </div>
+                      </div>
+                    )}
+
+                    {/* Vocabulary Cards */}
+                    {module.type === "vocabulary" && (
+                      <div className="w-full">
+                        {module.content.vocabularyTitle && (
+                          <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                            {module.content.vocabularyTitle}
+                          </h3>
+                        )}
+                        {module.content.vocabularyItems && module.content.vocabularyItems.length > 0 ? (
+                          <div className="space-y-3">
+                            {module.content.vocabularyItems.map((item: any) => {
+                              const isThisPlaying = currentAudioUrl === item.audioUrl && isAudioPlaying;
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
+                                >
+                                  {/* Image */}
+                                  {item.imageUrl && (
+                                    <div className="flex-shrink-0">
+                                      <img
+                                        src={item.imageUrl}
+                                        alt={item.word}
+                                        className="w-20 h-20 md:w-28 md:h-28 object-cover rounded-xl border border-slate-200"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Audio Button */}
+                                  {item.audioUrl && (
+                                    <button
+                                      onClick={() => toggleAudio(item.audioUrl)}
+                                      className={`flex-shrink-0 size-10 md:size-12 rounded-full ${isThisPlaying ? 'bg-blue-100' : 'bg-slate-100 hover:bg-slate-200'} flex items-center justify-center transition-colors`}
+                                    >
+                                      <span className={`material-symbols-outlined ${isThisPlaying ? 'text-blue-600' : 'text-slate-600'} text-xl md:text-2xl`}>
+                                        {isThisPlaying ? 'pause' : 'volume_up'}
+                                      </span>
+                                    </button>
+                                  )}
+
+                                  {/* Word and Definition */}
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-base md:text-lg font-bold text-slate-800">
+                                      {item.word}
+                                    </h4>
+                                    {item.definition && (
+                                      <p className="text-sm text-slate-500 mt-0.5">
+                                        {item.definition}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-sm">No vocabulary items added</p>
+                        )}
                       </div>
                     )}
                   </div>

@@ -85,7 +85,8 @@ interface Module {
     | "truefalse"
     | "imagechoice"
     | "inlinechoice"
-    | "youtube";
+    | "youtube"
+    | "vocabulary";
   content: {
     text?: string;
     textBgColor?: string; // Background color for text module
@@ -119,7 +120,19 @@ interface Module {
     inlineChoiceSentences?: InlineChoiceSentence[];
     youtubeUrl?: string;
     youtubeTitle?: string;
+    vocabularyTitle?: string;
+    vocabularyItems?: VocabularyItem[];
   };
+}
+
+interface VocabularyItem {
+  id: string;
+  word: string;
+  definition: string;
+  imageUrl?: string;
+  imageName?: string;
+  audioUrl?: string;
+  audioName?: string;
 }
 
 // Library Files Panel Component
@@ -826,6 +839,12 @@ export default function LessonEditorPage() {
       color: "bg-red-100 hover:bg-red-200 text-red-700",
     },
     {
+      type: "vocabulary",
+      icon: "dictionary",
+      label: "Vocabulary Cards",
+      color: "bg-lime-100 hover:bg-lime-200 text-lime-700",
+    },
+    {
       type: "wordwall",
       icon: "extension",
       label: "Wordwall Activity",
@@ -909,7 +928,12 @@ export default function LessonEditorPage() {
                             },
                           ],
                         }
-                      : {},
+                      : type === "vocabulary"
+                        ? {
+                            vocabularyTitle: "Słuchaj i powtarzaj",
+                            vocabularyItems: [],
+                          }
+                        : {},
     };
     setModules([...modules, newModule]);
   };
@@ -970,10 +994,11 @@ export default function LessonEditorPage() {
 
     // Delete associated files from R2 storage
     if (moduleToDelete?.content) {
+      const content = moduleToDelete.content as Record<string, any>;
       const urlFields = ["imageUrl", "pdfUrl", "audioUrl", "videoUrl"];
 
       for (const field of urlFields) {
-        const url = moduleToDelete.content[field];
+        const url = content[field];
         if (url && typeof url === "string") {
           const filePath = getFilePathFromUrl(url);
           if (filePath) {
@@ -1001,6 +1026,35 @@ export default function LessonEditorPage() {
                 console.log(`Deleted audio file from R2: ${filePath}`);
               } catch (err) {
                 console.error(`Error deleting audio file ${filePath}:`, err);
+              }
+            }
+          }
+        }
+      }
+
+      // Handle vocabularyItems array for vocabulary modules
+      if (
+        moduleToDelete.content.vocabularyItems &&
+        Array.isArray(moduleToDelete.content.vocabularyItems)
+      ) {
+        for (const item of moduleToDelete.content.vocabularyItems) {
+          if (item.imageUrl) {
+            const filePath = getFilePathFromUrl(item.imageUrl);
+            if (filePath) {
+              try {
+                await deleteFile(filePath);
+              } catch (err) {
+                console.error(`Error deleting vocabulary image:`, err);
+              }
+            }
+          }
+          if (item.audioUrl) {
+            const filePath = getFilePathFromUrl(item.audioUrl);
+            if (filePath) {
+              try {
+                await deleteFile(filePath);
+              } catch (err) {
+                console.error(`Error deleting vocabulary audio:`, err);
               }
             }
           }
@@ -1386,6 +1440,113 @@ export default function LessonEditorPage() {
       }
 
       showToast("Uploaded successfully!", "success");
+    } catch (error: any) {
+      showToast("Upload failed: " + error.message, "error");
+    }
+  };
+
+  // Vocabulary Item Functions
+  const addVocabularyItem = (moduleId: string) => {
+    const module = modules.find((m) => m.id === moduleId);
+    if (module) {
+      const vocabularyItems = module.content.vocabularyItems || [];
+      updateModuleContent(moduleId, {
+        vocabularyItems: [
+          ...vocabularyItems,
+          { id: Date.now().toString(), word: "", definition: "", imageUrl: "", audioUrl: "" },
+        ],
+      });
+    }
+  };
+
+  const removeVocabularyItem = async (moduleId: string, itemId: string) => {
+    const module = modules.find((m) => m.id === moduleId);
+    if (module && module.content.vocabularyItems) {
+      const itemToDelete = module.content.vocabularyItems.find((item) => item.id === itemId);
+
+      // Delete image and audio from storage if they exist
+      if (itemToDelete?.imageUrl) {
+        const filePath = getFilePathFromUrl(itemToDelete.imageUrl);
+        if (filePath) {
+          try {
+            await deleteFile(filePath);
+          } catch (err) {
+            console.error("Error deleting vocabulary image:", err);
+          }
+        }
+      }
+      if (itemToDelete?.audioUrl) {
+        const filePath = getFilePathFromUrl(itemToDelete.audioUrl);
+        if (filePath) {
+          try {
+            await deleteFile(filePath);
+          } catch (err) {
+            console.error("Error deleting vocabulary audio:", err);
+          }
+        }
+      }
+
+      updateModuleContent(moduleId, {
+        vocabularyItems: module.content.vocabularyItems.filter((item) => item.id !== itemId),
+      });
+    }
+  };
+
+  const updateVocabularyItem = (moduleId: string, itemId: string, field: string, value: string) => {
+    const module = modules.find((m) => m.id === moduleId);
+    if (module && module.content.vocabularyItems) {
+      const newItems = module.content.vocabularyItems.map((item) =>
+        item.id === itemId ? { ...item, [field]: value } : item
+      );
+      updateModuleContent(moduleId, { vocabularyItems: newItems });
+    }
+  };
+
+  const handleVocabularyImageUpload = async (moduleId: string, itemId: string, file: File) => {
+    try {
+      const lessonId = actualLessonId || (params.id as string);
+      const { processedFile, valid, message } = await processFileForUpload(file);
+
+      if (!valid) {
+        showToast(message || "File too large", "error");
+        return;
+      }
+
+      const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+
+      const module = modules.find((m) => m.id === moduleId);
+      if (module && module.content.vocabularyItems) {
+        const newItems = module.content.vocabularyItems.map((item) =>
+          item.id === itemId ? { ...item, imageUrl: url, imageName: name } : item
+        );
+        updateModuleContent(moduleId, { vocabularyItems: newItems });
+      }
+      showToast("Image uploaded!", "success");
+    } catch (error: any) {
+      showToast("Upload failed: " + error.message, "error");
+    }
+  };
+
+  const handleVocabularyAudioUpload = async (moduleId: string, itemId: string, file: File) => {
+    try {
+      const lessonId = actualLessonId || (params.id as string);
+      const { processedFile, valid, message } = await processFileForUpload(file);
+
+      if (!valid) {
+        showToast(message || "File too large", "error");
+        return;
+      }
+
+      const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+
+      const module = modules.find((m) => m.id === moduleId);
+      if (module && module.content.vocabularyItems) {
+        const newItems = module.content.vocabularyItems.map((item) =>
+          item.id === itemId ? { ...item, audioUrl: url, audioName: name } : item
+        );
+        updateModuleContent(moduleId, { vocabularyItems: newItems });
+      }
+      showToast("Audio uploaded!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
     }
@@ -4754,6 +4915,183 @@ export default function LessonEditorPage() {
                                 </div>
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {/* VOCABULARY MODULE */}
+                        {module.type === "vocabulary" && (
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">
+                                Section Title (optional):
+                              </label>
+                              <input
+                                type="text"
+                                value={module.content.vocabularyTitle || ""}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    vocabularyTitle: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="e.g., Listen and repeat"
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-600 font-medium">
+                                Vocabulary Items
+                              </p>
+                              <button
+                                onClick={() => addVocabularyItem(module.id)}
+                                className="px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+                              >
+                                <span className="material-symbols-outlined text-sm">add</span>
+                                Add Word
+                              </button>
+                            </div>
+
+                            {(!module.content.vocabularyItems || module.content.vocabularyItems.length === 0) && (
+                              <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200">
+                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">dictionary</span>
+                                <p className="text-sm text-slate-400">
+                                  No vocabulary items yet. Click &quot;Add Word&quot; to start.
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="space-y-3">
+                              {module.content.vocabularyItems?.map((item, index) => (
+                                <div key={item.id} className="bg-white p-4 rounded-lg border-2 border-lime-200">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <span className="text-xs font-semibold text-lime-700">Word {index + 1}</span>
+                                    <button
+                                      onClick={() => removeVocabularyItem(module.id, item.id)}
+                                      className="text-red-500 hover:text-red-700 transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-sm">delete</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Left: Image */}
+                                    <div>
+                                      <label className="text-xs font-medium text-slate-600 mb-1 block">Image</label>
+                                      {item.imageUrl ? (
+                                        <div className="relative">
+                                          <img
+                                            src={item.imageUrl}
+                                            alt={item.word}
+                                            className="w-full h-24 object-cover rounded-lg border border-slate-200"
+                                          />
+                                          <button
+                                            onClick={async () => {
+                                              const filePath = getFilePathFromUrl(item.imageUrl!);
+                                              if (filePath) {
+                                                try {
+                                                  await deleteFile(filePath);
+                                                } catch (err) {
+                                                  console.error(err);
+                                                }
+                                              }
+                                              updateVocabularyItem(module.id, item.id, "imageUrl", "");
+                                              updateVocabularyItem(module.id, item.id, "imageName", "");
+                                            }}
+                                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                          >
+                                            <span className="material-symbols-outlined text-[14px]">close</span>
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-lime-400 hover:bg-lime-50/50 transition-colors">
+                                          <span className="material-symbols-outlined text-slate-400 text-2xl">add_photo_alternate</span>
+                                          <span className="text-xs text-slate-400 mt-1">Upload image</span>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) handleVocabularyImageUpload(module.id, item.id, file);
+                                            }}
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+
+                                    {/* Right: Audio */}
+                                    <div>
+                                      <label className="text-xs font-medium text-slate-600 mb-1 block">Audio</label>
+                                      {item.audioUrl ? (
+                                        <div className="relative">
+                                          <div className="flex items-center gap-2 p-2 bg-lime-50 rounded-lg border border-lime-200">
+                                            <button
+                                              onClick={() => {
+                                                const audio = new Audio(item.audioUrl);
+                                                audio.play();
+                                              }}
+                                              className="size-10 rounded-full bg-lime-500 hover:bg-lime-600 flex items-center justify-center transition-colors"
+                                            >
+                                              <span className="material-symbols-outlined text-white text-xl">volume_up</span>
+                                            </button>
+                                            <span className="text-xs text-lime-700 truncate flex-1">{item.audioName}</span>
+                                            <button
+                                              onClick={async () => {
+                                                const filePath = getFilePathFromUrl(item.audioUrl!);
+                                                if (filePath) {
+                                                  try {
+                                                    await deleteFile(filePath);
+                                                  } catch (err) {
+                                                    console.error(err);
+                                                  }
+                                                }
+                                                updateVocabularyItem(module.id, item.id, "audioUrl", "");
+                                                updateVocabularyItem(module.id, item.id, "audioName", "");
+                                              }}
+                                              className="p-1 text-red-500 hover:text-red-700"
+                                            >
+                                              <span className="material-symbols-outlined text-[16px]">close</span>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-lime-400 hover:bg-lime-50/50 transition-colors">
+                                          <span className="material-symbols-outlined text-slate-400 text-2xl">mic</span>
+                                          <span className="text-xs text-slate-400 mt-1">Upload audio</span>
+                                          <input
+                                            type="file"
+                                            accept="audio/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) handleVocabularyAudioUpload(module.id, item.id, file);
+                                            }}
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Word and Definition */}
+                                  <div className="mt-3 space-y-2">
+                                    <input
+                                      type="text"
+                                      value={item.word}
+                                      onChange={(e) => updateVocabularyItem(module.id, item.id, "word", e.target.value)}
+                                      className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                                      placeholder="Word (e.g., time zone)"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={item.definition}
+                                      onChange={(e) => updateVocabularyItem(module.id, item.id, "definition", e.target.value)}
+                                      className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                                      placeholder="Definition (e.g., an area with the same standard time)"
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

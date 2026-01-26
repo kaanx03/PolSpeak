@@ -10,12 +10,13 @@ import {
   CurriculumTopic
 } from "@/lib/supabase-helpers";
 
-const levelColors = {
+const levelColors: Record<string, string> = {
   a1: "bg-emerald-100 text-emerald-700 border-emerald-200",
   a2: "bg-blue-100 text-blue-700 border-blue-200",
   b1: "bg-indigo-100 text-indigo-700 border-indigo-200",
   b2: "bg-purple-100 text-purple-700 border-purple-200",
   c1: "bg-rose-100 text-rose-700 border-rose-200",
+  c2: "bg-amber-100 text-amber-700 border-amber-200",
 };
 
 const categoryOptions = [
@@ -30,7 +31,7 @@ const categoryOptions = [
 
 export default function CurriculumPage() {
   const [topics, setTopics] = useState<CurriculumTopic[]>([]);
-  const [selectedLevel, setSelectedLevel] = useState<"a1" | "a2" | "b1" | "b2" | "c1">("a1");
+  const [selectedLevel, setSelectedLevel] = useState<"a1" | "a2" | "b1" | "b2" | "c1" | "c2">("a1");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTopic, setEditingTopic] = useState<CurriculumTopic | null>(null);
   const [topicToDelete, setTopicToDelete] = useState<CurriculumTopic | null>(null);
@@ -283,11 +284,11 @@ function TopicModal({
   onClose,
 }: {
   topic: CurriculumTopic | null;
-  currentLevel: "a1" | "a2" | "b1" | "b2" | "c1";
+  currentLevel: "a1" | "a2" | "b1" | "b2" | "c1" | "c2";
   onSave: (topic: any) => void;
   onClose: () => void;
 }) {
-  const [level, setLevel] = useState<"a1" | "a2" | "b1" | "b2" | "c1">(
+  const [level, setLevel] = useState<"a1" | "a2" | "b1" | "b2" | "c1" | "c2" | "c2">(
     topic?.level || currentLevel
   );
   const [category, setCategory] = useState(topic?.category || "");
