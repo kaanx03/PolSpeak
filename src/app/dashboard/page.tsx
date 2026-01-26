@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { fetchStudents, fetchGroups, fetchLessons, Student as DbStudent, Group as DbGroup, Lesson as DbLesson } from "@/lib/supabase-helpers";
+import { fetchStudents, fetchGroups, fetchLessons, fetchLessonContent } from "@/lib/supabase-helpers";
 
 interface DashboardStats {
   totalLessons: number;
@@ -58,43 +58,32 @@ export default function DashboardPage() {
   }, []);
 
   const loadDashboardData = async () => {
-    // Load students and groups from Supabase
-    const [studentsData, groupsData, lessonsData] = await Promise.all([
+    // Load students, groups, scheduled lessons, and lesson content from Supabase
+    const [studentsData, groupsData, lessonsData, lessonContentData] = await Promise.all([
       fetchStudents(),
       fetchGroups(),
-      fetchLessons()
+      fetchLessons(),
+      fetchLessonContent()
     ]);
 
     // Load curriculum topics from localStorage (will migrate later)
     const curriculumData = localStorage.getItem("curriculum-topics");
     const curriculumTopics = curriculumData ? JSON.parse(curriculumData) : [];
 
-    // Load lesson content from localStorage (will migrate later)
-    const allLessons: RecentLesson[] = [];
-    const levels = ["a1", "a2", "b1", "b2", "c1"];
+    // Map lesson content from Supabase to RecentLesson format
     let totalModules = 0;
-
-    levels.forEach((level) => {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith(`lesson-${level}-`)) {
-          const data = localStorage.getItem(key);
-          if (data) {
-            const lessonData = JSON.parse(data);
-            const lessonId = key.replace(`lesson-${level}-`, "");
-            allLessons.push({
-              id: lessonId,
-              level,
-              title: lessonData.title || "Untitled Lesson",
-              modules: lessonData.modules || [],
-              status: lessonData.status || "draft",
-              lastModified: lessonData.lastModified || new Date().toISOString(),
-              curriculumTopicId: lessonData.curriculumTopicId,
-            });
-            totalModules += (lessonData.modules || []).length;
-          }
-        }
-      }
+    const allLessons: RecentLesson[] = lessonContentData.map((lesson: any) => {
+      const modules = lesson.modules || [];
+      totalModules += modules.length;
+      return {
+        id: lesson.id,
+        level: lesson.level,
+        title: lesson.title || "Untitled Lesson",
+        modules: modules,
+        status: lesson.status || "draft",
+        lastModified: lesson.updated_at || lesson.created_at || new Date().toISOString(),
+        curriculumTopicId: lesson.curriculum_topic_id,
+      };
     });
 
     // Map Supabase data
@@ -175,6 +164,7 @@ export default function DashboardPage() {
       b1: "bg-indigo-50 text-indigo-700 border-indigo-200",
       b2: "bg-purple-50 text-purple-700 border-purple-200",
       c1: "bg-rose-50 text-rose-700 border-rose-200",
+      c2: "bg-amber-50 text-amber-700 border-amber-200",
     };
     return colors[level] || "bg-slate-50 text-slate-700 border-slate-200";
   };
@@ -186,6 +176,7 @@ export default function DashboardPage() {
       b1: "B1 Intermediate",
       b2: "B2 Upper Int.",
       c1: "C1 Advanced",
+      c2: "C2 Proficient",
     };
     return labels[level] || level.toUpperCase();
   };

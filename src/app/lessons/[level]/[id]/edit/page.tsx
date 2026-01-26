@@ -6,7 +6,16 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
 import { useLibrary } from "@/contexts/LibraryContext";
-import { fetchCurriculumTopics, fetchLessonContentById, createLessonContent, updateLessonContent, deleteLessonContent, uploadFile, deleteFile, getFilePathFromUrl } from "@/lib/supabase-helpers";
+import {
+  fetchCurriculumTopics,
+  fetchLessonContentById,
+  createLessonContent,
+  updateLessonContent,
+  deleteLessonContent,
+  uploadFile,
+  deleteFile,
+  getFilePathFromUrl,
+} from "@/lib/supabase-helpers";
 import { processFileForUpload, formatFileSize } from "@/lib/image-compression";
 
 interface QuizOption {
@@ -60,7 +69,23 @@ interface InlineChoiceSentence {
 
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice";
+  type:
+    | "fillblank"
+    | "pdf"
+    | "image"
+    | "quiz"
+    | "text"
+    | "audio"
+    | "matching"
+    | "wordwall"
+    | "miro"
+    | "quizlet"
+    | "genially"
+    | "baamboozle"
+    | "truefalse"
+    | "imagechoice"
+    | "inlinechoice"
+    | "youtube";
   content: {
     text?: string;
     textBgColor?: string; // Background color for text module
@@ -73,6 +98,7 @@ interface Module {
     questionAudioName?: string;
     options?: QuizOption[];
     audioItems?: AudioItem[];
+    audioPlayMode?: "controls" | "click"; // controls = full player, click = click to play
     imageItems?: ImageItem[];
     pdfUrl?: string;
     pdfName?: string;
@@ -91,20 +117,31 @@ interface Module {
     imageChoiceItems?: ImageChoiceItem[];
     inlineChoiceTitle?: string;
     inlineChoiceSentences?: InlineChoiceSentence[];
+    youtubeUrl?: string;
+    youtubeTitle?: string;
   };
 }
 
 // Library Files Panel Component
-function LibraryFilesPanel({ onFileSelect }: { onFileSelect?: (file: any) => void }) {
+function LibraryFilesPanel({
+  onFileSelect,
+}: {
+  onFileSelect?: (file: any) => void;
+}) {
   const { files, folders } = useLibrary();
-  const [filter, setFilter] = useState<"all" | "pdf" | "image" | "audio">("all");
+  const [filter, setFilter] = useState<"all" | "pdf" | "image" | "audio">(
+    "all",
+  );
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [longPressFile, setLongPressFile] = useState<any>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const filteredFiles = files.filter((file) => {
     const matchesFilter = filter === "all" || file.type === filter;
-    const matchesFolder = selectedFolderId === null ? !file.folderId : file.folderId === selectedFolderId;
+    const matchesFolder =
+      selectedFolderId === null
+        ? !file.folderId
+        : file.folderId === selectedFolderId;
     return matchesFilter && matchesFolder;
   });
 
@@ -174,7 +211,6 @@ function LibraryFilesPanel({ onFileSelect }: { onFileSelect?: (file: any) => voi
     }
   };
 
-
   return (
     <div className="flex flex-col gap-3">
       {/* Folder tabs */}
@@ -188,7 +224,9 @@ function LibraryFilesPanel({ onFileSelect }: { onFileSelect?: (file: any) => voi
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <span className="material-symbols-outlined text-[12px]">folder</span>
+            <span className="material-symbols-outlined text-[12px]">
+              folder
+            </span>
             All
           </button>
           {folders.map((folder) => (
@@ -284,7 +322,9 @@ function LibraryFilesPanel({ onFileSelect }: { onFileSelect?: (file: any) => voi
                     />
                   </div>
                 ) : (
-                  <span className={`material-symbols-outlined text-[18px] ${iconData.color}`}>
+                  <span
+                    className={`material-symbols-outlined text-[18px] ${iconData.color}`}
+                  >
                     {iconData.icon}
                   </span>
                 )}
@@ -313,7 +353,9 @@ export default function LessonEditorPage() {
   const { addFiles } = useLibrary();
   const [lessonTitle, setLessonTitle] = useState("Untitled Lesson");
   const [modules, setModules] = useState<Module[]>([]);
-  const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("draft");
+  const [lessonStatus, setLessonStatus] = useState<"draft" | "published">(
+    "draft",
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [curriculumTopicId, setCurriculumTopicId] = useState<string>("");
   const [curriculumTopics, setCurriculumTopics] = useState<any[]>([]);
@@ -376,7 +418,7 @@ export default function LessonEditorPage() {
 
   const loadLesson = async () => {
     // Check if this is a new lesson
-    if (params.id === 'new') {
+    if (params.id === "new") {
       setIsNewLesson(true);
       setActualLessonId(null);
       setHasInitiallyLoaded(true);
@@ -401,7 +443,6 @@ export default function LessonEditorPage() {
     }
   };
 
-
   // Validation function
   const validateModules = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
@@ -422,49 +463,83 @@ export default function LessonEditorPage() {
           break;
 
         case "fillblank":
-          if (!module.content.sentence || module.content.sentence.trim() === "") {
-            errors.push(`Module ${moduleNum} (Fill in the Blank): Sentence cannot be empty`);
+          if (
+            !module.content.sentence ||
+            module.content.sentence.trim() === ""
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Fill in the Blank): Sentence cannot be empty`,
+            );
           } else if (!/\d+\./.test(module.content.sentence)) {
-            errors.push(`Module ${moduleNum} (Fill in the Blank): Sentence must contain at least one blank using 1. 2. etc.`);
+            errors.push(
+              `Module ${moduleNum} (Fill in the Blank): Sentence must contain at least one blank using 1. 2. etc.`,
+            );
           }
           if (!module.content.answers || module.content.answers.length === 0) {
-            errors.push(`Module ${moduleNum} (Fill in the Blank): Please add at least one answer`);
-          } else if (module.content.answers.some(a => !a || a.trim() === "")) {
-            errors.push(`Module ${moduleNum} (Fill in the Blank): All answers must be filled in`);
+            errors.push(
+              `Module ${moduleNum} (Fill in the Blank): Please add at least one answer`,
+            );
+          } else if (
+            module.content.answers.some((a) => !a || a.trim() === "")
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Fill in the Blank): All answers must be filled in`,
+            );
           }
           break;
 
         case "quiz":
-          if (!module.content.question || module.content.question.trim() === "") {
+          if (
+            !module.content.question ||
+            module.content.question.trim() === ""
+          ) {
             errors.push(`Module ${moduleNum} (Quiz): Question cannot be empty`);
           }
           if (!module.content.options || module.content.options.length < 2) {
-            errors.push(`Module ${moduleNum} (Quiz): Must have at least 2 options`);
+            errors.push(
+              `Module ${moduleNum} (Quiz): Must have at least 2 options`,
+            );
           } else {
-            if (module.content.options.some(opt => !opt.text || opt.text.trim() === "")) {
-              errors.push(`Module ${moduleNum} (Quiz): All options must have text`);
+            if (
+              module.content.options.some(
+                (opt) => !opt.text || opt.text.trim() === "",
+              )
+            ) {
+              errors.push(
+                `Module ${moduleNum} (Quiz): All options must have text`,
+              );
             }
-            if (!module.content.options.some(opt => opt.isCorrect)) {
-              errors.push(`Module ${moduleNum} (Quiz): Must mark at least one correct answer`);
+            if (!module.content.options.some((opt) => opt.isCorrect)) {
+              errors.push(
+                `Module ${moduleNum} (Quiz): Must mark at least one correct answer`,
+              );
             }
           }
           break;
 
         case "matching":
           if (!module.content.pairs || module.content.pairs.length === 0) {
-            errors.push(`Module ${moduleNum} (Matching): Please add at least one pair`);
+            errors.push(
+              `Module ${moduleNum} (Matching): Please add at least one pair`,
+            );
           } else {
             module.content.pairs.forEach((pair, pairIndex) => {
               if (!pair.left || pair.left.trim() === "") {
-                errors.push(`Module ${moduleNum} (Matching): Pair ${pairIndex + 1} - Left side cannot be empty`);
+                errors.push(
+                  `Module ${moduleNum} (Matching): Pair ${pairIndex + 1} - Left side cannot be empty`,
+                );
               }
               if (module.content.matchingType === "word-definition") {
                 if (!pair.right || pair.right.trim() === "") {
-                  errors.push(`Module ${moduleNum} (Matching): Pair ${pairIndex + 1} - Right side cannot be empty`);
+                  errors.push(
+                    `Module ${moduleNum} (Matching): Pair ${pairIndex + 1} - Right side cannot be empty`,
+                  );
                 }
               } else if (module.content.matchingType === "word-image") {
                 if (!pair.rightImage || pair.rightImage.trim() === "") {
-                  errors.push(`Module ${moduleNum} (Matching): Pair ${pairIndex + 1} - Image is required`);
+                  errors.push(
+                    `Module ${moduleNum} (Matching): Pair ${pairIndex + 1} - Image is required`,
+                  );
                 }
               }
             });
@@ -472,17 +547,28 @@ export default function LessonEditorPage() {
           break;
 
         case "image":
-          if (!module.content.imageItems || module.content.imageItems.length === 0) {
-            errors.push(`Module ${moduleNum} (Image): Please add at least one image`);
+          if (
+            !module.content.imageItems ||
+            module.content.imageItems.length === 0
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Image): Please add at least one image`,
+            );
           } else {
-            module.content.imageItems.forEach((item: ImageItem, itemIndex: number) => {
-              if (!item.imageUrl || item.imageUrl.trim() === "") {
-                errors.push(`Module ${moduleNum} (Image): Image ${itemIndex + 1} - Please upload an image`);
-              }
-              if (!item.caption || item.caption.trim() === "") {
-                errors.push(`Module ${moduleNum} (Image): Image ${itemIndex + 1} - Caption is required`);
-              }
-            });
+            module.content.imageItems.forEach(
+              (item: ImageItem, itemIndex: number) => {
+                if (!item.imageUrl || item.imageUrl.trim() === "") {
+                  errors.push(
+                    `Module ${moduleNum} (Image): Image ${itemIndex + 1} - Please upload an image`,
+                  );
+                }
+                if (!item.caption || item.caption.trim() === "") {
+                  errors.push(
+                    `Module ${moduleNum} (Image): Image ${itemIndex + 1} - Caption is required`,
+                  );
+                }
+              },
+            );
           }
           break;
 
@@ -493,41 +579,72 @@ export default function LessonEditorPage() {
           break;
 
         case "audio":
-          if (!module.content.audioItems || module.content.audioItems.length === 0) {
-            errors.push(`Module ${moduleNum} (Audio): Please add at least one audio item`);
+          if (
+            !module.content.audioItems ||
+            module.content.audioItems.length === 0
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Audio): Please add at least one audio item`,
+            );
           } else {
-            module.content.audioItems.forEach((item: AudioItem, itemIndex: number) => {
-              if (!item.audioUrl || item.audioUrl.trim() === "") {
-                errors.push(`Module ${moduleNum} (Audio): Audio ${itemIndex + 1} - Please upload an audio file`);
-              }
-              if (!item.title || item.title.trim() === "") {
-                errors.push(`Module ${moduleNum} (Audio): Audio ${itemIndex + 1} - Title is required`);
-              }
-            });
+            module.content.audioItems.forEach(
+              (item: AudioItem, itemIndex: number) => {
+                if (!item.audioUrl || item.audioUrl.trim() === "") {
+                  errors.push(
+                    `Module ${moduleNum} (Audio): Audio ${itemIndex + 1} - Please upload an audio file`,
+                  );
+                }
+                if (!item.title || item.title.trim() === "") {
+                  errors.push(
+                    `Module ${moduleNum} (Audio): Audio ${itemIndex + 1} - Title is required`,
+                  );
+                }
+              },
+            );
           }
           break;
 
         case "wordwall":
-          if (!module.content.wordwallIframe || module.content.wordwallIframe.trim() === "") {
-            errors.push(`Module ${moduleNum} (Wordwall): Please add Wordwall iframe code`);
+          if (
+            !module.content.wordwallIframe ||
+            module.content.wordwallIframe.trim() === ""
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Wordwall): Please add Wordwall iframe code`,
+            );
           }
           break;
 
         case "baamboozle":
-          if (!module.content.baamboozleUrl || module.content.baamboozleUrl.trim() === "") {
-            errors.push(`Module ${moduleNum} (Baamboozle): Please add a Baamboozle link`);
+          if (
+            !module.content.baamboozleUrl ||
+            module.content.baamboozleUrl.trim() === ""
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Baamboozle): Please add a Baamboozle link`,
+            );
           }
           break;
 
         case "quizlet":
-          if (!module.content.quizletIframe || module.content.quizletIframe.trim() === "") {
-            errors.push(`Module ${moduleNum} (Quizlet): Please add Quizlet iframe code`);
+          if (
+            !module.content.quizletIframe ||
+            module.content.quizletIframe.trim() === ""
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Quizlet): Please add Quizlet iframe code`,
+            );
           }
           break;
 
         case "genially":
-          if (!module.content.geniallyUrl || module.content.geniallyUrl.trim() === "") {
-            errors.push(`Module ${moduleNum} (Genially): Please add a Genially link`);
+          if (
+            !module.content.geniallyUrl ||
+            module.content.geniallyUrl.trim() === ""
+          ) {
+            errors.push(
+              `Module ${moduleNum} (Genially): Please add a Genially link`,
+            );
           }
           break;
 
@@ -550,7 +667,10 @@ export default function LessonEditorPage() {
       // Show additional errors if there are multiple
       if (validation.errors.length > 1) {
         setTimeout(() => {
-          showToast(`${validation.errors.length - 1} more validation error(s)`, "warning");
+          showToast(
+            `${validation.errors.length - 1} more validation error(s)`,
+            "warning",
+          );
         }, 500);
       }
       return;
@@ -584,7 +704,10 @@ export default function LessonEditorPage() {
       // Show additional errors if there are multiple
       if (validation.errors.length > 1) {
         setTimeout(() => {
-          showToast(`${validation.errors.length - 1} more validation error(s)`, "warning");
+          showToast(
+            `${validation.errors.length - 1} more validation error(s)`,
+            "warning",
+          );
         }, 500);
       }
       return;
@@ -621,7 +744,10 @@ export default function LessonEditorPage() {
       if (!isNewLesson) {
         await deleteLessonContent(params.id as string, params.level as string);
       }
-      showToast("Lesson and all associated files deleted successfully", "success");
+      showToast(
+        "Lesson and all associated files deleted successfully",
+        "success",
+      );
       setShowDeleteModal(false);
       setTimeout(() => {
         router.push(`/lessons/${params.level}`);
@@ -644,6 +770,12 @@ export default function LessonEditorPage() {
       icon: "edit_note",
       label: "Fill in the Blank",
       color: "bg-indigo-100 hover:bg-indigo-200 text-indigo-700",
+    },
+    {
+      type: "pdf",
+      icon: "picture_as_pdf",
+      label: "PDF Document",
+      color: "bg-red-100 hover:bg-red-200 text-red-700",
     },
     {
       type: "quiz",
@@ -688,9 +820,9 @@ export default function LessonEditorPage() {
       color: "bg-violet-100 hover:bg-violet-200 text-violet-700",
     },
     {
-      type: "pdf",
-      icon: "picture_as_pdf",
-      label: "PDF Document",
+      type: "youtube",
+      icon: "play_circle",
+      label: "YouTube Video",
       color: "bg-red-100 hover:bg-red-200 text-red-700",
     },
     {
@@ -729,21 +861,55 @@ export default function LessonEditorPage() {
     const newModule: Module = {
       id: Date.now().toString(),
       type: type as any,
-      content: type === "quiz"
-        ? { options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] }
-        : type === "matching"
-        ? { matchingType: "word-definition", pairs: [{ left: "", right: "" }] }
-        : type === "audio"
-        ? { audioItems: [] }
-        : type === "image"
-        ? { imageItems: [] }
-        : type === "truefalse"
-        ? { trueFalseTitle: "Wybierz prawda lub fałsz", trueFalseStatements: [{ id: Date.now().toString(), statement: "", isTrue: true }] }
-        : type === "imagechoice"
-        ? { imageChoiceTitle: "Look at the pictures and choose the correct words", imageChoiceItems: [] }
-        : type === "inlinechoice"
-        ? { inlineChoiceTitle: "Read each sentence and choose the correct word", inlineChoiceSentences: [{ id: Date.now().toString(), text: "", blanks: [{ correctAnswer: "", options: ["", ""] }] }] }
-        : {},
+      content:
+        type === "quiz"
+          ? {
+              options: [
+                { text: "", isCorrect: true },
+                { text: "", isCorrect: false },
+              ],
+            }
+          : type === "matching"
+            ? {
+                matchingType: "word-definition",
+                pairs: [{ left: "", right: "" }],
+              }
+            : type === "audio"
+              ? { audioItems: [] }
+              : type === "image"
+                ? { imageItems: [] }
+                : type === "truefalse"
+                  ? {
+                      trueFalseTitle: "Wybierz prawda lub fałsz",
+                      trueFalseStatements: [
+                        {
+                          id: Date.now().toString(),
+                          statement: "",
+                          isTrue: true,
+                        },
+                      ],
+                    }
+                  : type === "imagechoice"
+                    ? {
+                        imageChoiceTitle:
+                          "Look at the pictures and choose the correct words",
+                        imageChoiceItems: [],
+                      }
+                    : type === "inlinechoice"
+                      ? {
+                          inlineChoiceTitle:
+                            "Read each sentence and choose the correct word",
+                          inlineChoiceSentences: [
+                            {
+                              id: Date.now().toString(),
+                              text: "",
+                              blanks: [
+                                { correctAnswer: "", options: ["", ""] },
+                              ],
+                            },
+                          ],
+                        }
+                      : {},
     };
     setModules([...modules, newModule]);
   };
@@ -766,12 +932,14 @@ export default function LessonEditorPage() {
         id: Date.now().toString(),
         type: "image",
         content: {
-          imageItems: [{
-            id: Date.now().toString(),
-            imageUrl: file.url,
-            imageName: file.name,
-            caption: file.name,
-          }],
+          imageItems: [
+            {
+              id: Date.now().toString(),
+              imageUrl: file.url,
+              imageName: file.name,
+              caption: file.name,
+            },
+          ],
         },
       };
     } else if (file.type === "audio") {
@@ -779,12 +947,14 @@ export default function LessonEditorPage() {
         id: Date.now().toString(),
         type: "audio",
         content: {
-          audioItems: [{
-            id: Date.now().toString(),
-            audioUrl: file.url,
-            audioName: file.name,
-            title: file.name,
-          }],
+          audioItems: [
+            {
+              id: Date.now().toString(),
+              audioUrl: file.url,
+              audioName: file.name,
+              title: file.name,
+            },
+          ],
         },
       };
     }
@@ -795,7 +965,49 @@ export default function LessonEditorPage() {
     }
   };
 
-  const deleteModule = (id: string) => {
+  const deleteModule = async (id: string) => {
+    const moduleToDelete = modules.find((m) => m.id === id);
+
+    // Delete associated files from R2 storage
+    if (moduleToDelete?.content) {
+      const urlFields = ["imageUrl", "pdfUrl", "audioUrl", "videoUrl"];
+
+      for (const field of urlFields) {
+        const url = moduleToDelete.content[field];
+        if (url && typeof url === "string") {
+          const filePath = getFilePathFromUrl(url);
+          if (filePath) {
+            try {
+              await deleteFile(filePath);
+              console.log(`Deleted file from R2: ${filePath}`);
+            } catch (err) {
+              console.error(`Error deleting file ${filePath}:`, err);
+            }
+          }
+        }
+      }
+
+      // Handle audioItems array for audio modules
+      if (
+        moduleToDelete.content.audioItems &&
+        Array.isArray(moduleToDelete.content.audioItems)
+      ) {
+        for (const item of moduleToDelete.content.audioItems) {
+          if (item.audioUrl) {
+            const filePath = getFilePathFromUrl(item.audioUrl);
+            if (filePath) {
+              try {
+                await deleteFile(filePath);
+                console.log(`Deleted audio file from R2: ${filePath}`);
+              } catch (err) {
+                console.error(`Error deleting audio file ${filePath}:`, err);
+              }
+            }
+          }
+        }
+      }
+    }
+
     setModules(modules.filter((m) => m.id !== id));
   };
 
@@ -803,27 +1015,34 @@ export default function LessonEditorPage() {
     const newModules = [...modules];
     const newIndex = direction === "up" ? index - 1 : index + 1;
     if (newIndex >= 0 && newIndex < modules.length) {
-      [newModules[index], newModules[newIndex]] = [newModules[newIndex], newModules[index]];
+      [newModules[index], newModules[newIndex]] = [
+        newModules[newIndex],
+        newModules[index],
+      ];
       setModules(newModules);
     }
   };
 
   const updateModuleContent = (id: string, content: any) => {
-    setModules(modules.map(m => m.id === id ? { ...m, content: { ...m.content, ...content } } : m));
+    setModules(
+      modules.map((m) =>
+        m.id === id ? { ...m, content: { ...m.content, ...content } } : m,
+      ),
+    );
   };
 
   // Quiz functions
   const addQuizOption = (moduleId: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.options) {
       updateModuleContent(moduleId, {
-        options: [...module.content.options, { text: "", isCorrect: false }]
+        options: [...module.content.options, { text: "", isCorrect: false }],
       });
     }
   };
 
   const removeQuizOption = (moduleId: string, index: number) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.options && module.content.options.length > 2) {
       const newOptions = module.content.options.filter((_, i) => i !== index);
       updateModuleContent(moduleId, { options: newOptions });
@@ -831,7 +1050,7 @@ export default function LessonEditorPage() {
   };
 
   const updateQuizOption = (moduleId: string, index: number, text: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.options) {
       const newOptions = [...module.content.options];
       newOptions[index].text = text;
@@ -840,11 +1059,11 @@ export default function LessonEditorPage() {
   };
 
   const setCorrectAnswer = (moduleId: string, index: number) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.options) {
       const newOptions = module.content.options.map((opt, i) => ({
         ...opt,
-        isCorrect: i === index
+        isCorrect: i === index,
       }));
       updateModuleContent(moduleId, { options: newOptions });
     }
@@ -852,24 +1071,29 @@ export default function LessonEditorPage() {
 
   // Matching functions
   const addMatchingPair = (moduleId: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.pairs) {
       updateModuleContent(moduleId, {
-        pairs: [...module.content.pairs, { left: "", right: "" }]
+        pairs: [...module.content.pairs, { left: "", right: "" }],
       });
     }
   };
 
   const removeMatchingPair = (moduleId: string, index: number) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.pairs && module.content.pairs.length > 1) {
       const newPairs = module.content.pairs.filter((_, i) => i !== index);
       updateModuleContent(moduleId, { pairs: newPairs });
     }
   };
 
-  const updateMatchingPair = (moduleId: string, index: number, field: "left" | "right", value: string) => {
-    const module = modules.find(m => m.id === moduleId);
+  const updateMatchingPair = (
+    moduleId: string,
+    index: number,
+    field: "left" | "right",
+    value: string,
+  ) => {
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.pairs) {
       const newPairs = [...module.content.pairs];
       newPairs[index][field] = value;
@@ -878,13 +1102,24 @@ export default function LessonEditorPage() {
   };
 
   // File upload handlers - Upload to Supabase Storage
-  const handleFileUpload = async (moduleId: string, type: "image" | "pdf" | "audio", file: File) => {
+  const handleFileUpload = async (
+    moduleId: string,
+    type: "image" | "pdf" | "audio",
+    file: File,
+  ) => {
     try {
       // Get lesson ID
-      const lessonId = actualLessonId || params.id as string;
+      const lessonId = actualLessonId || (params.id as string);
 
       // Process file (compress images, validate size)
-      const { processedFile, originalSize, compressedSize, compressionRatio, valid, message } = await processFileForUpload(file);
+      const {
+        processedFile,
+        originalSize,
+        compressedSize,
+        compressionRatio,
+        valid,
+        message,
+      } = await processFileForUpload(file);
 
       if (!valid) {
         showToast(message || "File too large", "error");
@@ -893,26 +1128,31 @@ export default function LessonEditorPage() {
 
       // Show compression info for images
       if (type === "image" && compressionRatio > 0) {
-        console.log(`Image compressed: ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)} (${compressionRatio.toFixed(0)}% reduction)`);
+        console.log(
+          `Image compressed: ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)} (${compressionRatio.toFixed(0)}% reduction)`,
+        );
       }
 
       // Upload to Supabase Storage
-      const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+      const { url, name } = await uploadFile(
+        processedFile,
+        `lessons/${params.level}/${lessonId}`,
+      );
 
       if (type === "image") {
         updateModuleContent(moduleId, {
           imageUrl: url,
-          imageName: name
+          imageName: name,
         });
       } else if (type === "pdf") {
         updateModuleContent(moduleId, {
           pdfUrl: url,
-          pdfName: name
+          pdfName: name,
         });
       } else if (type === "audio") {
         updateModuleContent(moduleId, {
           audioUrl: url,
-          audioName: name
+          audioName: name,
         });
       }
 
@@ -922,12 +1162,17 @@ export default function LessonEditorPage() {
     }
   };
 
-  const handleMatchingImageUpload = async (moduleId: string, pairIndex: number, file: File) => {
+  const handleMatchingImageUpload = async (
+    moduleId: string,
+    pairIndex: number,
+    file: File,
+  ) => {
     try {
-      const lessonId = actualLessonId || params.id as string;
+      const lessonId = actualLessonId || (params.id as string);
 
       // Process file (compress images, validate size)
-      const { processedFile, valid, message } = await processFileForUpload(file);
+      const { processedFile, valid, message } =
+        await processFileForUpload(file);
 
       if (!valid) {
         showToast(message || "File too large", "error");
@@ -935,9 +1180,12 @@ export default function LessonEditorPage() {
       }
 
       // Upload to Supabase Storage
-      const { url } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+      const { url } = await uploadFile(
+        processedFile,
+        `lessons/${params.level}/${lessonId}`,
+      );
 
-      const module = modules.find(m => m.id === moduleId);
+      const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.pairs) {
         const newPairs = [...module.content.pairs];
         newPairs[pairIndex].rightImage = url;
@@ -952,20 +1200,25 @@ export default function LessonEditorPage() {
 
   // Audio Item functions
   const addAudioItem = (moduleId: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module) {
       const audioItems = module.content.audioItems || [];
       updateModuleContent(moduleId, {
-        audioItems: [...audioItems, { id: Date.now().toString(), audioUrl: "", audioName: "", title: "" }]
+        audioItems: [
+          ...audioItems,
+          { id: Date.now().toString(), audioUrl: "", audioName: "", title: "" },
+        ],
       });
     }
   };
 
   const removeAudioItem = async (moduleId: string, itemId: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.audioItems) {
       // Find the item to delete
-      const itemToDelete = module.content.audioItems.find(item => item.id === itemId);
+      const itemToDelete = module.content.audioItems.find(
+        (item) => item.id === itemId,
+      );
 
       // Delete from storage if it has a URL
       if (itemToDelete?.audioUrl) {
@@ -975,31 +1228,42 @@ export default function LessonEditorPage() {
             await deleteFile(filePath);
           }
         } catch (error) {
-          console.error('Failed to delete audio file from storage:', error);
+          console.error("Failed to delete audio file from storage:", error);
         }
       }
 
-      const newItems = module.content.audioItems.filter(item => item.id !== itemId);
-      updateModuleContent(moduleId, { audioItems: newItems });
-    }
-  };
-
-  const updateAudioItemTitle = (moduleId: string, itemId: string, title: string) => {
-    const module = modules.find(m => m.id === moduleId);
-    if (module && module.content.audioItems) {
-      const newItems = module.content.audioItems.map(item =>
-        item.id === itemId ? { ...item, title } : item
+      const newItems = module.content.audioItems.filter(
+        (item) => item.id !== itemId,
       );
       updateModuleContent(moduleId, { audioItems: newItems });
     }
   };
 
-  const handleAudioItemUpload = async (moduleId: string, itemId: string, file: File) => {
+  const updateAudioItemTitle = (
+    moduleId: string,
+    itemId: string,
+    title: string,
+  ) => {
+    const module = modules.find((m) => m.id === moduleId);
+    if (module && module.content.audioItems) {
+      const newItems = module.content.audioItems.map((item) =>
+        item.id === itemId ? { ...item, title } : item,
+      );
+      updateModuleContent(moduleId, { audioItems: newItems });
+    }
+  };
+
+  const handleAudioItemUpload = async (
+    moduleId: string,
+    itemId: string,
+    file: File,
+  ) => {
     try {
-      const lessonId = actualLessonId || params.id as string;
+      const lessonId = actualLessonId || (params.id as string);
 
       // Process file (validate size for audio)
-      const { processedFile, valid, message } = await processFileForUpload(file);
+      const { processedFile, valid, message } =
+        await processFileForUpload(file);
 
       if (!valid) {
         showToast(message || "File too large", "error");
@@ -1007,12 +1271,17 @@ export default function LessonEditorPage() {
       }
 
       // Upload to Supabase Storage
-      const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+      const { url, name } = await uploadFile(
+        processedFile,
+        `lessons/${params.level}/${lessonId}`,
+      );
 
-      const module = modules.find(m => m.id === moduleId);
+      const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.audioItems) {
-        const newItems = module.content.audioItems.map(item =>
-          item.id === itemId ? { ...item, audioUrl: url, audioName: name } : item
+        const newItems = module.content.audioItems.map((item) =>
+          item.id === itemId
+            ? { ...item, audioUrl: url, audioName: name }
+            : item,
         );
         updateModuleContent(moduleId, { audioItems: newItems });
       }
@@ -1025,20 +1294,30 @@ export default function LessonEditorPage() {
 
   // Image Item functions
   const addImageItem = (moduleId: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module) {
       const imageItems = module.content.imageItems || [];
       updateModuleContent(moduleId, {
-        imageItems: [...imageItems, { id: Date.now().toString(), imageUrl: "", imageName: "", caption: "" }]
+        imageItems: [
+          ...imageItems,
+          {
+            id: Date.now().toString(),
+            imageUrl: "",
+            imageName: "",
+            caption: "",
+          },
+        ],
       });
     }
   };
 
   const removeImageItem = async (moduleId: string, itemId: string) => {
-    const module = modules.find(m => m.id === moduleId);
+    const module = modules.find((m) => m.id === moduleId);
     if (module && module.content.imageItems) {
       // Find the item to delete
-      const itemToDelete = module.content.imageItems.find(item => item.id === itemId);
+      const itemToDelete = module.content.imageItems.find(
+        (item) => item.id === itemId,
+      );
 
       // Delete from storage if it has a URL
       if (itemToDelete?.imageUrl) {
@@ -1048,31 +1327,42 @@ export default function LessonEditorPage() {
             await deleteFile(filePath);
           }
         } catch (error) {
-          console.error('Failed to delete image file from storage:', error);
+          console.error("Failed to delete image file from storage:", error);
         }
       }
 
-      const newItems = module.content.imageItems.filter(item => item.id !== itemId);
-      updateModuleContent(moduleId, { imageItems: newItems });
-    }
-  };
-
-  const updateImageItemCaption = (moduleId: string, itemId: string, caption: string) => {
-    const module = modules.find(m => m.id === moduleId);
-    if (module && module.content.imageItems) {
-      const newItems = module.content.imageItems.map(item =>
-        item.id === itemId ? { ...item, caption } : item
+      const newItems = module.content.imageItems.filter(
+        (item) => item.id !== itemId,
       );
       updateModuleContent(moduleId, { imageItems: newItems });
     }
   };
 
-  const handleImageItemUpload = async (moduleId: string, itemId: string, file: File) => {
+  const updateImageItemCaption = (
+    moduleId: string,
+    itemId: string,
+    caption: string,
+  ) => {
+    const module = modules.find((m) => m.id === moduleId);
+    if (module && module.content.imageItems) {
+      const newItems = module.content.imageItems.map((item) =>
+        item.id === itemId ? { ...item, caption } : item,
+      );
+      updateModuleContent(moduleId, { imageItems: newItems });
+    }
+  };
+
+  const handleImageItemUpload = async (
+    moduleId: string,
+    itemId: string,
+    file: File,
+  ) => {
     try {
-      const lessonId = actualLessonId || params.id as string;
+      const lessonId = actualLessonId || (params.id as string);
 
       // Process file (compress images, validate size)
-      const { processedFile, valid, message } = await processFileForUpload(file);
+      const { processedFile, valid, message } =
+        await processFileForUpload(file);
 
       if (!valid) {
         showToast(message || "File too large", "error");
@@ -1080,12 +1370,17 @@ export default function LessonEditorPage() {
       }
 
       // Upload to Supabase Storage
-      const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
+      const { url, name } = await uploadFile(
+        processedFile,
+        `lessons/${params.level}/${lessonId}`,
+      );
 
-      const module = modules.find(m => m.id === moduleId);
+      const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.imageItems) {
-        const newItems = module.content.imageItems.map(item =>
-          item.id === itemId ? { ...item, imageUrl: url, imageName: name } : item
+        const newItems = module.content.imageItems.map((item) =>
+          item.id === itemId
+            ? { ...item, imageUrl: url, imageName: name }
+            : item,
         );
         updateModuleContent(moduleId, { imageItems: newItems });
       }
@@ -1164,7 +1459,9 @@ export default function LessonEditorPage() {
                   className="md:hidden p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
                   title="Create Lesson"
                 >
-                  <span className="material-symbols-outlined text-[20px]">add</span>
+                  <span className="material-symbols-outlined text-[20px]">
+                    add
+                  </span>
                 </button>
               ) : (
                 <>
@@ -1174,11 +1471,16 @@ export default function LessonEditorPage() {
                       className="md:hidden p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
                       title="Publish"
                     >
-                      <span className="material-symbols-outlined text-[20px]">publish</span>
+                      <span className="material-symbols-outlined text-[20px]">
+                        publish
+                      </span>
                     </button>
                   )}
                   {lessonStatus === "published" && (
-                    <span className="md:hidden size-2 rounded-full bg-emerald-500" title="Published"></span>
+                    <span
+                      className="md:hidden size-2 rounded-full bg-emerald-500"
+                      title="Published"
+                    ></span>
                   )}
                 </>
               )}
@@ -1187,7 +1489,9 @@ export default function LessonEditorPage() {
                 href={`/lessons/${params.level}/${params.id}/present`}
                 className="inline-flex items-center gap-2 px-2 md:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                <span className="material-symbols-outlined text-[18px]">present_to_all</span>
+                <span className="material-symbols-outlined text-[18px]">
+                  present_to_all
+                </span>
                 <span className="hidden md:inline">Present Mode</span>
               </Link>
             </div>
@@ -1223,7 +1527,9 @@ export default function LessonEditorPage() {
                 className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-lg ${module.color} transition-all`}
                 title={module.label}
               >
-                <span className="material-symbols-outlined text-[22px]">{module.icon}</span>
+                <span className="material-symbols-outlined text-[22px]">
+                  {module.icon}
+                </span>
               </button>
             ))}
           </div>
@@ -1243,7 +1549,9 @@ export default function LessonEditorPage() {
                   onClick={() => addModule(module.type)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg ${module.color} text-sm font-medium transition-colors text-left`}
                 >
-                  <span className="material-symbols-outlined text-[20px]">{module.icon}</span>
+                  <span className="material-symbols-outlined text-[20px]">
+                    {module.icon}
+                  </span>
                   <span>{module.label}</span>
                 </button>
               ))}
@@ -1258,7 +1566,9 @@ export default function LessonEditorPage() {
                   className="text-indigo-600 hover:text-indigo-700 normal-case text-xs font-medium"
                   title="Open Library"
                 >
-                  <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                  <span className="material-symbols-outlined text-[16px]">
+                    open_in_new
+                  </span>
                 </Link>
               </h4>
               <LibraryFilesPanel onFileSelect={addModuleFromLibrary} />
@@ -1272,11 +1582,17 @@ export default function LessonEditorPage() {
                 value={curriculumTopicId}
                 onChange={(e) => setCurriculumTopicId(e.target.value)}
                 className="w-full px-2 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer mb-4"
-                style={{ fontSize: '12px' }}
+                style={{ fontSize: "12px" }}
               >
-                <option value="" style={{ fontSize: '12px' }}>No topic assigned</option>
+                <option value="" style={{ fontSize: "12px" }}>
+                  No topic assigned
+                </option>
                 {curriculumTopics.map((topic) => (
-                  <option key={topic.id} value={topic.id} style={{ fontSize: '12px' }}>
+                  <option
+                    key={topic.id}
+                    value={topic.id}
+                    style={{ fontSize: "12px" }}
+                  >
                     {topic.category} - {topic.title}
                   </option>
                 ))}
@@ -1341,7 +1657,9 @@ export default function LessonEditorPage() {
                       add_circle
                     </span>
                   </div>
-                  <h3 className="text-lg font-bold text-[#1e293b] mb-2">Start Building Your Lesson</h3>
+                  <h3 className="text-lg font-bold text-[#1e293b] mb-2">
+                    Start Building Your Lesson
+                  </h3>
                   <p className="text-slate-500 text-sm mb-1">
                     Click on modules from the left panel to add them
                   </p>
@@ -1359,10 +1677,16 @@ export default function LessonEditorPage() {
                       <div className="flex items-center justify-between mb-3 md:mb-4">
                         <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                           <span className="material-symbols-outlined text-slate-400 text-[20px] md:text-[24px] flex-shrink-0">
-                            {moduleTypes.find((t) => t.type === module.type)?.icon}
+                            {
+                              moduleTypes.find((t) => t.type === module.type)
+                                ?.icon
+                            }
                           </span>
                           <span className="font-medium text-slate-700 text-sm md:text-base truncate">
-                            {moduleTypes.find((t) => t.type === module.type)?.label}
+                            {
+                              moduleTypes.find((t) => t.type === module.type)
+                                ?.label
+                            }
                           </span>
                         </div>
                         <div className="flex items-center gap-0.5 md:gap-1 opacity-100 xl:opacity-0 xl:group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -1385,10 +1709,12 @@ export default function LessonEditorPage() {
                             </span>
                           </button>
                           <button
-                            onClick={() => deleteModule(module.id)}
+                            onClick={() => void deleteModule(module.id)}
                             className="p-1 hover:bg-red-50 text-red-600 rounded"
                           >
-                            <span className="material-symbols-outlined text-[16px] md:text-[18px]">delete</span>
+                            <span className="material-symbols-outlined text-[16px] md:text-[18px]">
+                              delete
+                            </span>
                           </button>
                         </div>
                       </div>
@@ -1404,15 +1730,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`text-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `text-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.text || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
-                                      updateModuleContent(module.id, { text: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `**${selectedText}**` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        text: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1426,15 +1762,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`text-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `text-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.text || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
-                                      updateModuleContent(module.id, { text: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `*${selectedText}*` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        text: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1448,15 +1794,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`text-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `text-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.text || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
-                                      updateModuleContent(module.id, { text: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `__${selectedText}__` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        text: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1471,7 +1827,9 @@ export default function LessonEditorPage() {
 
                               {/* Background Color Picker */}
                               <div className="flex items-center gap-1">
-                                <span className="text-xs text-slate-500 mr-1">Background:</span>
+                                <span className="text-xs text-slate-500 mr-1">
+                                  Background:
+                                </span>
                                 {[
                                   { color: "#ffffff", name: "White" },
                                   { color: "#f0efed", name: "Gray" },
@@ -1487,9 +1845,14 @@ export default function LessonEditorPage() {
                                   <button
                                     key={bg.color}
                                     type="button"
-                                    onClick={() => updateModuleContent(module.id, { textBgColor: bg.color })}
+                                    onClick={() =>
+                                      updateModuleContent(module.id, {
+                                        textBgColor: bg.color,
+                                      })
+                                    }
                                     className={`size-6 rounded border-2 transition-all ${
-                                      (module.content.textBgColor || "#ffffff") === bg.color
+                                      (module.content.textBgColor ||
+                                        "#ffffff") === bg.color
                                         ? "border-indigo-500 scale-110"
                                         : "border-slate-200 hover:border-slate-300"
                                     }`}
@@ -1504,9 +1867,16 @@ export default function LessonEditorPage() {
                             <textarea
                               id={`text-textarea-${module.id}`}
                               value={module.content.text || ""}
-                              onChange={(e) => updateModuleContent(module.id, { text: e.target.value })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  text: e.target.value,
+                                })
+                              }
                               className="w-full min-h-[100px] rounded border border-slate-200 p-3 text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                              style={{ backgroundColor: module.content.textBgColor || "#ffffff" }}
+                              style={{
+                                backgroundColor:
+                                  module.content.textBgColor || "#ffffff",
+                              }}
                               placeholder="Enter your text content here... Use **text** for bold."
                             />
                           </div>
@@ -1521,28 +1891,43 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `fillblank-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const text = module.content.sentence || "";
                                     // Count existing blanks to determine next number
                                     const matches = text.match(/\d+\./g) || [];
                                     const nextNum = matches.length + 1;
-                                    const newText = text.substring(0, start) + `${nextNum}.` + text.substring(start);
-                                    updateModuleContent(module.id, { sentence: newText });
+                                    const newText =
+                                      text.substring(0, start) +
+                                      `${nextNum}.` +
+                                      text.substring(start);
+                                    updateModuleContent(module.id, {
+                                      sentence: newText,
+                                    });
                                     // Focus back and set cursor position
                                     setTimeout(() => {
                                       textarea.focus();
-                                      const newPos = start + `${nextNum}.`.length;
-                                      textarea.setSelectionRange(newPos, newPos);
+                                      const newPos =
+                                        start + `${nextNum}.`.length;
+                                      textarea.setSelectionRange(
+                                        newPos,
+                                        newPos,
+                                      );
                                     }, 0);
                                   }
                                 }}
                                 className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100 transition-colors text-sm"
                                 title="Add blank (1., 2., etc.)"
                               >
-                                <span className="material-symbols-outlined text-[16px]">add</span>
-                                <span className="text-xs font-medium">Blank</span>
+                                <span className="material-symbols-outlined text-[16px]">
+                                  add
+                                </span>
+                                <span className="text-xs font-medium">
+                                  Blank
+                                </span>
                               </button>
 
                               <div className="w-px h-6 bg-slate-200" />
@@ -1551,15 +1936,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `fillblank-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.sentence || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
-                                      updateModuleContent(module.id, { sentence: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `**${selectedText}**` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        sentence: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1573,15 +1968,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `fillblank-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.sentence || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
-                                      updateModuleContent(module.id, { sentence: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `*${selectedText}*` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        sentence: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1595,15 +2000,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`fillblank-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `fillblank-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.sentence || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
-                                      updateModuleContent(module.id, { sentence: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `__${selectedText}__` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        sentence: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1618,14 +2033,24 @@ export default function LessonEditorPage() {
                               id={`fillblank-textarea-${module.id}`}
                               rows={4}
                               value={module.content.sentence || ""}
-                              onChange={(e) => updateModuleContent(module.id, { sentence: e.target.value })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  sentence: e.target.value,
+                                })
+                              }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                               placeholder="Enter sentence with 1. 2. for blanks. E.g.: The cat 1. on the 2."
                             />
                             <input
                               type="text"
                               value={module.content.answers?.join(", ") || ""}
-                              onChange={(e) => updateModuleContent(module.id, { answers: e.target.value.split(",").map(s => s.trim()) })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  answers: e.target.value
+                                    .split(",")
+                                    .map((s) => s.trim()),
+                                })
+                              }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                               placeholder="Correct answers in order (comma separated). E.g.: sat, mat"
                             />
@@ -1641,15 +2066,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`quiz-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `quiz-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.question || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
-                                      updateModuleContent(module.id, { question: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `**${selectedText}**` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        question: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1663,15 +2098,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`quiz-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `quiz-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.question || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
-                                      updateModuleContent(module.id, { question: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `*${selectedText}*` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        question: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1685,15 +2130,25 @@ export default function LessonEditorPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const textarea = document.getElementById(`quiz-textarea-${module.id}`) as HTMLTextAreaElement;
+                                  const textarea = document.getElementById(
+                                    `quiz-textarea-${module.id}`,
+                                  ) as HTMLTextAreaElement;
                                   if (textarea) {
                                     const start = textarea.selectionStart;
                                     const end = textarea.selectionEnd;
                                     const text = module.content.question || "";
-                                    const selectedText = text.substring(start, end);
+                                    const selectedText = text.substring(
+                                      start,
+                                      end,
+                                    );
                                     if (selectedText) {
-                                      const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
-                                      updateModuleContent(module.id, { question: newText });
+                                      const newText =
+                                        text.substring(0, start) +
+                                        `__${selectedText}__` +
+                                        text.substring(end);
+                                      updateModuleContent(module.id, {
+                                        question: newText,
+                                      });
                                     }
                                   }
                                 }}
@@ -1708,7 +2163,11 @@ export default function LessonEditorPage() {
                               id={`quiz-textarea-${module.id}`}
                               rows={2}
                               value={module.content.question || ""}
-                              onChange={(e) => updateModuleContent(module.id, { question: e.target.value })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  question: e.target.value,
+                                })
+                              }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                               placeholder="Quiz question..."
                             />
@@ -1717,21 +2176,33 @@ export default function LessonEditorPage() {
                             <div className="flex gap-2">
                               {module.content.questionImageUrl ? (
                                 <div className="relative w-40 h-24 border-2 border-purple-200 rounded overflow-hidden group">
-                                  <img src={module.content.questionImageUrl} alt="Question" className="w-full h-full object-cover" />
+                                  <img
+                                    src={module.content.questionImageUrl}
+                                    alt="Question"
+                                    className="w-full h-full object-cover"
+                                  />
                                   <button
                                     onClick={async () => {
                                       // Delete from storage first
                                       if (module.content.questionImageUrl) {
                                         try {
-                                          const filePath = getFilePathFromUrl(module.content.questionImageUrl);
+                                          const filePath = getFilePathFromUrl(
+                                            module.content.questionImageUrl,
+                                          );
                                           if (filePath) {
                                             await deleteFile(filePath);
                                           }
                                         } catch (error) {
-                                          console.error('Failed to delete question image from storage:', error);
+                                          console.error(
+                                            "Failed to delete question image from storage:",
+                                            error,
+                                          );
                                         }
                                       }
-                                      updateModuleContent(module.id, { questionImageUrl: undefined, questionImageName: undefined });
+                                      updateModuleContent(module.id, {
+                                        questionImageUrl: undefined,
+                                        questionImageName: undefined,
+                                      });
                                     }}
                                     className="absolute top-1 right-1 px-2 py-0.5 bg-black/60 hover:bg-black/80 text-white text-[10px] font-medium rounded transition-all"
                                   >
@@ -1744,27 +2215,40 @@ export default function LessonEditorPage() {
                                   onDragOver={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    e.currentTarget.classList.add("border-purple-500", "bg-purple-100");
+                                    e.currentTarget.classList.add(
+                                      "border-purple-500",
+                                      "bg-purple-100",
+                                    );
                                   }}
                                   onDragLeave={(e) => {
-                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
+                                    e.currentTarget.classList.remove(
+                                      "border-purple-500",
+                                      "bg-purple-100",
+                                    );
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
-                                    const fileData = e.dataTransfer.getData("library-file");
+                                    e.currentTarget.classList.remove(
+                                      "border-purple-500",
+                                      "bg-purple-100",
+                                    );
+                                    const fileData =
+                                      e.dataTransfer.getData("library-file");
                                     if (fileData) {
                                       try {
                                         const file = JSON.parse(fileData);
                                         if (file.type === "image") {
                                           updateModuleContent(module.id, {
                                             questionImageUrl: file.url,
-                                            questionImageName: file.name
+                                            questionImageName: file.name,
                                           });
                                         }
                                       } catch (err) {
-                                        console.error("Failed to parse dropped file:", err);
+                                        console.error(
+                                          "Failed to parse dropped file:",
+                                          err,
+                                        );
                                       }
                                     }
                                   }}
@@ -1777,25 +2261,41 @@ export default function LessonEditorPage() {
                                         const file = e.target.files?.[0];
                                         if (file) {
                                           try {
-                                            const lessonId = actualLessonId || params.id as string;
-                                            const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                            const lessonId =
+                                              actualLessonId ||
+                                              (params.id as string);
+                                            const { url, name } =
+                                              await uploadFile(
+                                                file,
+                                                `lessons/${params.level}/${lessonId}`,
+                                              );
                                             updateModuleContent(module.id, {
                                               questionImageUrl: url,
-                                              questionImageName: name
+                                              questionImageName: name,
                                             });
-                                            showToast("Uploaded successfully!", "success");
+                                            showToast(
+                                              "Uploaded successfully!",
+                                              "success",
+                                            );
                                           } catch (error: any) {
-                                            showToast("Upload failed: " + error.message, "error");
+                                            showToast(
+                                              "Upload failed: " + error.message,
+                                              "error",
+                                            );
                                           } finally {
-                                            e.target.value = '';
+                                            e.target.value = "";
                                           }
                                         }
                                       }}
                                       className="hidden"
                                     />
                                     <div className="text-center">
-                                      <span className="material-symbols-outlined text-xl text-purple-400">image</span>
-                                      <p className="text-[10px] text-slate-500 mt-0.5">Add/Drag image</p>
+                                      <span className="material-symbols-outlined text-xl text-purple-400">
+                                        image
+                                      </span>
+                                      <p className="text-[10px] text-slate-500 mt-0.5">
+                                        Add/Drag image
+                                      </p>
                                     </div>
                                   </label>
                                 </div>
@@ -1805,29 +2305,43 @@ export default function LessonEditorPage() {
                               {module.content.questionAudioUrl ? (
                                 <div className="flex-1 bg-purple-50 border-2 border-purple-200 rounded p-2 space-y-1">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-xs text-purple-700 font-medium">{module.content.questionAudioName}</span>
+                                    <span className="text-xs text-purple-700 font-medium">
+                                      {module.content.questionAudioName}
+                                    </span>
                                     <button
                                       onClick={async () => {
                                         // Delete from storage first
                                         if (module.content.questionAudioUrl) {
                                           try {
-                                            const filePath = getFilePathFromUrl(module.content.questionAudioUrl);
+                                            const filePath = getFilePathFromUrl(
+                                              module.content.questionAudioUrl,
+                                            );
                                             if (filePath) {
                                               await deleteFile(filePath);
                                             }
                                           } catch (error) {
-                                            console.error('Failed to delete question audio from storage:', error);
+                                            console.error(
+                                              "Failed to delete question audio from storage:",
+                                              error,
+                                            );
                                           }
                                         }
-                                        updateModuleContent(module.id, { questionAudioUrl: undefined, questionAudioName: undefined });
+                                        updateModuleContent(module.id, {
+                                          questionAudioUrl: undefined,
+                                          questionAudioName: undefined,
+                                        });
                                       }}
                                       className="text-red-500 hover:text-red-700"
                                     >
-                                      <span className="material-symbols-outlined text-sm">delete</span>
+                                      <span className="material-symbols-outlined text-sm">
+                                        delete
+                                      </span>
                                     </button>
                                   </div>
                                   <audio controls className="w-full h-7">
-                                    <source src={module.content.questionAudioUrl} />
+                                    <source
+                                      src={module.content.questionAudioUrl}
+                                    />
                                   </audio>
                                 </div>
                               ) : (
@@ -1836,27 +2350,40 @@ export default function LessonEditorPage() {
                                   onDragOver={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    e.currentTarget.classList.add("border-purple-500", "bg-purple-100");
+                                    e.currentTarget.classList.add(
+                                      "border-purple-500",
+                                      "bg-purple-100",
+                                    );
                                   }}
                                   onDragLeave={(e) => {
-                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
+                                    e.currentTarget.classList.remove(
+                                      "border-purple-500",
+                                      "bg-purple-100",
+                                    );
                                   }}
                                   onDrop={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    e.currentTarget.classList.remove("border-purple-500", "bg-purple-100");
-                                    const fileData = e.dataTransfer.getData("library-file");
+                                    e.currentTarget.classList.remove(
+                                      "border-purple-500",
+                                      "bg-purple-100",
+                                    );
+                                    const fileData =
+                                      e.dataTransfer.getData("library-file");
                                     if (fileData) {
                                       try {
                                         const file = JSON.parse(fileData);
                                         if (file.type === "audio") {
                                           updateModuleContent(module.id, {
                                             questionAudioUrl: file.url,
-                                            questionAudioName: file.name
+                                            questionAudioName: file.name,
                                           });
                                         }
                                       } catch (err) {
-                                        console.error("Failed to parse dropped file:", err);
+                                        console.error(
+                                          "Failed to parse dropped file:",
+                                          err,
+                                        );
                                       }
                                     }
                                   }}
@@ -1869,25 +2396,41 @@ export default function LessonEditorPage() {
                                         const file = e.target.files?.[0];
                                         if (file) {
                                           try {
-                                            const lessonId = actualLessonId || params.id as string;
-                                            const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                            const lessonId =
+                                              actualLessonId ||
+                                              (params.id as string);
+                                            const { url, name } =
+                                              await uploadFile(
+                                                file,
+                                                `lessons/${params.level}/${lessonId}`,
+                                              );
                                             updateModuleContent(module.id, {
                                               questionAudioUrl: url,
-                                              questionAudioName: name
+                                              questionAudioName: name,
                                             });
-                                            showToast("Uploaded successfully!", "success");
+                                            showToast(
+                                              "Uploaded successfully!",
+                                              "success",
+                                            );
                                           } catch (error: any) {
-                                            showToast("Upload failed: " + error.message, "error");
+                                            showToast(
+                                              "Upload failed: " + error.message,
+                                              "error",
+                                            );
                                           } finally {
-                                            e.target.value = '';
+                                            e.target.value = "";
                                           }
                                         }
                                       }}
                                       className="hidden"
                                     />
                                     <div className="text-center">
-                                      <span className="material-symbols-outlined text-xl text-purple-400">volume_up</span>
-                                      <p className="text-[10px] text-slate-500 mt-0.5">Add/Drag audio</p>
+                                      <span className="material-symbols-outlined text-xl text-purple-400">
+                                        volume_up
+                                      </span>
+                                      <p className="text-[10px] text-slate-500 mt-0.5">
+                                        Add/Drag audio
+                                      </p>
                                     </div>
                                   </label>
                                 </div>
@@ -1896,30 +2439,46 @@ export default function LessonEditorPage() {
 
                             <div className="space-y-2">
                               {module.content.options?.map((option, i) => (
-                                <div key={i} className="flex items-center gap-2">
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-2"
+                                >
                                   <input
                                     type="radio"
                                     name={`quiz-${module.id}`}
                                     checked={option.isCorrect}
-                                    onChange={() => setCorrectAnswer(module.id, i)}
+                                    onChange={() =>
+                                      setCorrectAnswer(module.id, i)
+                                    }
                                     className="cursor-pointer"
                                     title="Mark as correct answer"
                                   />
                                   <input
                                     type="text"
                                     value={option.text}
-                                    onChange={(e) => updateQuizOption(module.id, i, e.target.value)}
+                                    onChange={(e) =>
+                                      updateQuizOption(
+                                        module.id,
+                                        i,
+                                        e.target.value,
+                                      )
+                                    }
                                     className="flex-1 bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                     placeholder={`Option ${i + 1}`}
                                   />
-                                  {module.content.options && module.content.options.length > 2 && (
-                                    <button
-                                      onClick={() => removeQuizOption(module.id, i)}
-                                      className="p-1 hover:bg-red-50 text-red-600 rounded"
-                                    >
-                                      <span className="material-symbols-outlined text-[18px]">close</span>
-                                    </button>
-                                  )}
+                                  {module.content.options &&
+                                    module.content.options.length > 2 && (
+                                      <button
+                                        onClick={() =>
+                                          removeQuizOption(module.id, i)
+                                        }
+                                        className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                      >
+                                        <span className="material-symbols-outlined text-[18px]">
+                                          close
+                                        </span>
+                                      </button>
+                                    )}
                                 </div>
                               ))}
                             </div>
@@ -1936,48 +2495,86 @@ export default function LessonEditorPage() {
                         {module.type === "matching" && (
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 mb-3">
-                              <label className="text-sm font-medium text-slate-700">Matching Type:</label>
+                              <label className="text-sm font-medium text-slate-700">
+                                Matching Type:
+                              </label>
                               <select
-                                value={module.content.matchingType || "word-definition"}
-                                onChange={(e) => updateModuleContent(module.id, { matchingType: e.target.value })}
+                                value={
+                                  module.content.matchingType ||
+                                  "word-definition"
+                                }
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    matchingType: e.target.value,
+                                  })
+                                }
                                 className="px-3 py-1 bg-white rounded border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                               >
-                                <option value="word-definition">Word - Definition</option>
+                                <option value="word-definition">
+                                  Word - Definition
+                                </option>
                                 <option value="word-image">Word - Image</option>
                               </select>
                             </div>
                             <div className="space-y-2">
                               {module.content.pairs?.map((pair, i) => (
-                                <div key={i} className="flex items-center gap-2">
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-2"
+                                >
                                   <input
                                     type="text"
                                     value={pair.left}
-                                    onChange={(e) => updateMatchingPair(module.id, i, "left", e.target.value)}
+                                    onChange={(e) =>
+                                      updateMatchingPair(
+                                        module.id,
+                                        i,
+                                        "left",
+                                        e.target.value,
+                                      )
+                                    }
                                     className="flex-1 bg-white rounded border border-slate-200 px-2 md:px-3 py-2 text-xs md:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-0"
                                     placeholder="Left"
                                   />
-                                  <span className="material-symbols-outlined text-slate-400 text-sm md:text-base">swap_horiz</span>
-                                  {module.content.matchingType === "word-image" ? (
+                                  <span className="material-symbols-outlined text-slate-400 text-sm md:text-base">
+                                    swap_horiz
+                                  </span>
+                                  {module.content.matchingType ===
+                                  "word-image" ? (
                                     <div className="flex-1 relative min-w-0">
                                       {pair.rightImage ? (
                                         <div className="relative h-16 md:h-20 w-full border-2 border-slate-200 rounded overflow-hidden group">
-                                          <img src={pair.rightImage} alt="Match" className="w-full h-full object-cover" />
+                                          <img
+                                            src={pair.rightImage}
+                                            alt="Match"
+                                            className="w-full h-full object-cover"
+                                          />
                                           <button
                                             onClick={async () => {
                                               // Delete from storage first
                                               if (pair.rightImage) {
                                                 try {
-                                                  const filePath = getFilePathFromUrl(pair.rightImage);
+                                                  const filePath =
+                                                    getFilePathFromUrl(
+                                                      pair.rightImage,
+                                                    );
                                                   if (filePath) {
                                                     await deleteFile(filePath);
                                                   }
                                                 } catch (error) {
-                                                  console.error('Failed to delete matching pair image from storage:', error);
+                                                  console.error(
+                                                    "Failed to delete matching pair image from storage:",
+                                                    error,
+                                                  );
                                                 }
                                               }
-                                              const newPairs = [...(module.content.pairs || [])];
+                                              const newPairs = [
+                                                ...(module.content.pairs || []),
+                                              ];
                                               delete newPairs[i].rightImage;
-                                              updateModuleContent(module.id, { pairs: newPairs });
+                                              updateModuleContent(module.id, {
+                                                pairs: newPairs,
+                                              });
                                             }}
                                             className="absolute top-1 right-1 md:top-2 md:right-2 px-1.5 md:px-2 py-0.5 bg-black/60 hover:bg-black/80 text-white text-[9px] md:text-[10px] font-medium rounded transition-all"
                                           >
@@ -1990,26 +2587,51 @@ export default function LessonEditorPage() {
                                           onDragOver={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            e.currentTarget.classList.add("border-indigo-500", "bg-indigo-50");
+                                            e.currentTarget.classList.add(
+                                              "border-indigo-500",
+                                              "bg-indigo-50",
+                                            );
                                           }}
                                           onDragLeave={(e) => {
-                                            e.currentTarget.classList.remove("border-indigo-500", "bg-indigo-50");
+                                            e.currentTarget.classList.remove(
+                                              "border-indigo-500",
+                                              "bg-indigo-50",
+                                            );
                                           }}
                                           onDrop={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            e.currentTarget.classList.remove("border-indigo-500", "bg-indigo-50");
-                                            const fileData = e.dataTransfer.getData("library-file");
+                                            e.currentTarget.classList.remove(
+                                              "border-indigo-500",
+                                              "bg-indigo-50",
+                                            );
+                                            const fileData =
+                                              e.dataTransfer.getData(
+                                                "library-file",
+                                              );
                                             if (fileData) {
                                               try {
-                                                const file = JSON.parse(fileData);
+                                                const file =
+                                                  JSON.parse(fileData);
                                                 if (file.type === "image") {
-                                                  const newPairs = [...(module.content.pairs || [])];
-                                                  newPairs[i] = { ...newPairs[i], rightImage: file.url };
-                                                  updateModuleContent(module.id, { pairs: newPairs });
+                                                  const newPairs = [
+                                                    ...(module.content.pairs ||
+                                                      []),
+                                                  ];
+                                                  newPairs[i] = {
+                                                    ...newPairs[i],
+                                                    rightImage: file.url,
+                                                  };
+                                                  updateModuleContent(
+                                                    module.id,
+                                                    { pairs: newPairs },
+                                                  );
                                                 }
                                               } catch (err) {
-                                                console.error("Failed to parse dropped file:", err);
+                                                console.error(
+                                                  "Failed to parse dropped file:",
+                                                  err,
+                                                );
                                               }
                                             }
                                           }}
@@ -2019,14 +2641,24 @@ export default function LessonEditorPage() {
                                               type="file"
                                               accept="image/*"
                                               onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) handleMatchingImageUpload(module.id, i, file);
+                                                const file =
+                                                  e.target.files?.[0];
+                                                if (file)
+                                                  handleMatchingImageUpload(
+                                                    module.id,
+                                                    i,
+                                                    file,
+                                                  );
                                               }}
                                               className="hidden"
                                             />
                                             <div className="text-center">
-                                              <span className="material-symbols-outlined text-lg md:text-2xl text-slate-400">image</span>
-                                              <p className="text-[9px] md:text-xs text-slate-500 mt-0.5 md:mt-1">Upload/Drag</p>
+                                              <span className="material-symbols-outlined text-lg md:text-2xl text-slate-400">
+                                                image
+                                              </span>
+                                              <p className="text-[9px] md:text-xs text-slate-500 mt-0.5 md:mt-1">
+                                                Upload/Drag
+                                              </p>
                                             </div>
                                           </label>
                                         </div>
@@ -2036,19 +2668,31 @@ export default function LessonEditorPage() {
                                     <input
                                       type="text"
                                       value={pair.right}
-                                      onChange={(e) => updateMatchingPair(module.id, i, "right", e.target.value)}
+                                      onChange={(e) =>
+                                        updateMatchingPair(
+                                          module.id,
+                                          i,
+                                          "right",
+                                          e.target.value,
+                                        )
+                                      }
                                       className="flex-1 bg-white rounded border border-slate-200 px-2 md:px-3 py-2 text-xs md:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-0"
                                       placeholder="Right"
                                     />
                                   )}
-                                  {module.content.pairs && module.content.pairs.length > 1 && (
-                                    <button
-                                      onClick={() => removeMatchingPair(module.id, i)}
-                                      className="p-1 hover:bg-red-50 text-red-600 rounded flex-shrink-0"
-                                    >
-                                      <span className="material-symbols-outlined text-[16px] md:text-[18px]">close</span>
-                                    </button>
-                                  )}
+                                  {module.content.pairs &&
+                                    module.content.pairs.length > 1 && (
+                                      <button
+                                        onClick={() =>
+                                          removeMatchingPair(module.id, i)
+                                        }
+                                        className="p-1 hover:bg-red-50 text-red-600 rounded flex-shrink-0"
+                                      >
+                                        <span className="material-symbols-outlined text-[16px] md:text-[18px]">
+                                          close
+                                        </span>
+                                      </button>
+                                    )}
                                 </div>
                               ))}
                             </div>
@@ -2067,150 +2711,265 @@ export default function LessonEditorPage() {
                             <input
                               type="text"
                               value={module.content.trueFalseTitle || ""}
-                              onChange={(e) => updateModuleContent(module.id, { trueFalseTitle: e.target.value })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  trueFalseTitle: e.target.value,
+                                })
+                              }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                               placeholder="Title (e.g., Choose true or false)"
                             />
 
                             <div className="space-y-2">
-                              {module.content.trueFalseStatements?.map((statement, i) => (
-                                <div key={statement.id} className="bg-white p-3 rounded-lg border border-slate-200">
-                                  {/* Toolbar */}
-                                  <div className="flex items-center gap-1 mb-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const input = document.getElementById(`truefalse-input-${statement.id}`) as HTMLInputElement;
-                                        if (input) {
-                                          const start = input.selectionStart || 0;
-                                          const end = input.selectionEnd || 0;
-                                          const text = statement.statement || "";
-                                          const selectedText = text.substring(start, end);
-                                          if (selectedText) {
-                                            const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
-                                            const newStatements = [...(module.content.trueFalseStatements || [])];
-                                            newStatements[i] = { ...newStatements[i], statement: newText };
-                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                              {module.content.trueFalseStatements?.map(
+                                (statement, i) => (
+                                  <div
+                                    key={statement.id}
+                                    className="bg-white p-3 rounded-lg border border-slate-200"
+                                  >
+                                    {/* Toolbar */}
+                                    <div className="flex items-center gap-1 mb-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const input = document.getElementById(
+                                            `truefalse-input-${statement.id}`,
+                                          ) as HTMLInputElement;
+                                          if (input) {
+                                            const start =
+                                              input.selectionStart || 0;
+                                            const end = input.selectionEnd || 0;
+                                            const text =
+                                              statement.statement || "";
+                                            const selectedText = text.substring(
+                                              start,
+                                              end,
+                                            );
+                                            if (selectedText) {
+                                              const newText =
+                                                text.substring(0, start) +
+                                                `**${selectedText}**` +
+                                                text.substring(end);
+                                              const newStatements = [
+                                                ...(module.content
+                                                  .trueFalseStatements || []),
+                                              ];
+                                              newStatements[i] = {
+                                                ...newStatements[i],
+                                                statement: newText,
+                                              };
+                                              updateModuleContent(module.id, {
+                                                trueFalseStatements:
+                                                  newStatements,
+                                              });
+                                            }
                                           }
-                                        }
-                                      }}
-                                      className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                                      title="Bold"
-                                    >
-                                      <span className="font-bold text-xs">B</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const input = document.getElementById(`truefalse-input-${statement.id}`) as HTMLInputElement;
-                                        if (input) {
-                                          const start = input.selectionStart || 0;
-                                          const end = input.selectionEnd || 0;
-                                          const text = statement.statement || "";
-                                          const selectedText = text.substring(start, end);
-                                          if (selectedText) {
-                                            const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
-                                            const newStatements = [...(module.content.trueFalseStatements || [])];
-                                            newStatements[i] = { ...newStatements[i], statement: newText };
-                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                          }
-                                        }
-                                      }}
-                                      className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                                      title="Italic"
-                                    >
-                                      <span className="italic text-xs">I</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const input = document.getElementById(`truefalse-input-${statement.id}`) as HTMLInputElement;
-                                        if (input) {
-                                          const start = input.selectionStart || 0;
-                                          const end = input.selectionEnd || 0;
-                                          const text = statement.statement || "";
-                                          const selectedText = text.substring(start, end);
-                                          if (selectedText) {
-                                            const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
-                                            const newStatements = [...(module.content.trueFalseStatements || [])];
-                                            newStatements[i] = { ...newStatements[i], statement: newText };
-                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                          }
-                                        }
-                                      }}
-                                      className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                                      title="Underline"
-                                    >
-                                      <span className="underline text-xs">U</span>
-                                    </button>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1">
-                                      <input
-                                        id={`truefalse-input-${statement.id}`}
-                                        type="text"
-                                        value={statement.statement}
-                                        onChange={(e) => {
-                                          const newStatements = [...(module.content.trueFalseStatements || [])];
-                                          newStatements[i] = { ...newStatements[i], statement: e.target.value };
-                                          updateModuleContent(module.id, { trueFalseStatements: newStatements });
                                         }}
-                                        className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                        placeholder="Enter statement..."
-                                      />
+                                        className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                        title="Bold"
+                                      >
+                                        <span className="font-bold text-xs">
+                                          B
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const input = document.getElementById(
+                                            `truefalse-input-${statement.id}`,
+                                          ) as HTMLInputElement;
+                                          if (input) {
+                                            const start =
+                                              input.selectionStart || 0;
+                                            const end = input.selectionEnd || 0;
+                                            const text =
+                                              statement.statement || "";
+                                            const selectedText = text.substring(
+                                              start,
+                                              end,
+                                            );
+                                            if (selectedText) {
+                                              const newText =
+                                                text.substring(0, start) +
+                                                `*${selectedText}*` +
+                                                text.substring(end);
+                                              const newStatements = [
+                                                ...(module.content
+                                                  .trueFalseStatements || []),
+                                              ];
+                                              newStatements[i] = {
+                                                ...newStatements[i],
+                                                statement: newText,
+                                              };
+                                              updateModuleContent(module.id, {
+                                                trueFalseStatements:
+                                                  newStatements,
+                                              });
+                                            }
+                                          }
+                                        }}
+                                        className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                        title="Italic"
+                                      >
+                                        <span className="italic text-xs">
+                                          I
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const input = document.getElementById(
+                                            `truefalse-input-${statement.id}`,
+                                          ) as HTMLInputElement;
+                                          if (input) {
+                                            const start =
+                                              input.selectionStart || 0;
+                                            const end = input.selectionEnd || 0;
+                                            const text =
+                                              statement.statement || "";
+                                            const selectedText = text.substring(
+                                              start,
+                                              end,
+                                            );
+                                            if (selectedText) {
+                                              const newText =
+                                                text.substring(0, start) +
+                                                `__${selectedText}__` +
+                                                text.substring(end);
+                                              const newStatements = [
+                                                ...(module.content
+                                                  .trueFalseStatements || []),
+                                              ];
+                                              newStatements[i] = {
+                                                ...newStatements[i],
+                                                statement: newText,
+                                              };
+                                              updateModuleContent(module.id, {
+                                                trueFalseStatements:
+                                                  newStatements,
+                                              });
+                                            }
+                                          }
+                                        }}
+                                        className="flex items-center justify-center size-6 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                        title="Underline"
+                                      >
+                                        <span className="underline text-xs">
+                                          U
+                                        </span>
+                                      </button>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() => {
-                                          const newStatements = [...(module.content.trueFalseStatements || [])];
-                                          newStatements[i] = { ...newStatements[i], isTrue: true };
-                                          updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                        }}
-                                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                                          statement.isTrue
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-slate-100 text-slate-600 hover:bg-emerald-100"
-                                        }`}
-                                      >
-                                        True
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          const newStatements = [...(module.content.trueFalseStatements || [])];
-                                          newStatements[i] = { ...newStatements[i], isTrue: false };
-                                          updateModuleContent(module.id, { trueFalseStatements: newStatements });
-                                        }}
-                                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                                          !statement.isTrue
-                                            ? "bg-red-500 text-white"
-                                            : "bg-slate-100 text-slate-600 hover:bg-red-100"
-                                        }`}
-                                      >
-                                        False
-                                      </button>
-                                      {module.content.trueFalseStatements && module.content.trueFalseStatements.length > 1 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1">
+                                        <input
+                                          id={`truefalse-input-${statement.id}`}
+                                          type="text"
+                                          value={statement.statement}
+                                          onChange={(e) => {
+                                            const newStatements = [
+                                              ...(module.content
+                                                .trueFalseStatements || []),
+                                            ];
+                                            newStatements[i] = {
+                                              ...newStatements[i],
+                                              statement: e.target.value,
+                                            };
+                                            updateModuleContent(module.id, {
+                                              trueFalseStatements:
+                                                newStatements,
+                                            });
+                                          }}
+                                          className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                          placeholder="Enter statement..."
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-1">
                                         <button
                                           onClick={() => {
-                                            const newStatements = module.content.trueFalseStatements?.filter((_, idx) => idx !== i) || [];
-                                            updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                            const newStatements = [
+                                              ...(module.content
+                                                .trueFalseStatements || []),
+                                            ];
+                                            newStatements[i] = {
+                                              ...newStatements[i],
+                                              isTrue: true,
+                                            };
+                                            updateModuleContent(module.id, {
+                                              trueFalseStatements:
+                                                newStatements,
+                                            });
                                           }}
-                                          className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                            statement.isTrue
+                                              ? "bg-emerald-500 text-white"
+                                              : "bg-slate-100 text-slate-600 hover:bg-emerald-100"
+                                          }`}
                                         >
-                                          <span className="material-symbols-outlined text-[18px]">close</span>
+                                          True
                                         </button>
-                                      )}
+                                        <button
+                                          onClick={() => {
+                                            const newStatements = [
+                                              ...(module.content
+                                                .trueFalseStatements || []),
+                                            ];
+                                            newStatements[i] = {
+                                              ...newStatements[i],
+                                              isTrue: false,
+                                            };
+                                            updateModuleContent(module.id, {
+                                              trueFalseStatements:
+                                                newStatements,
+                                            });
+                                          }}
+                                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                            !statement.isTrue
+                                              ? "bg-red-500 text-white"
+                                              : "bg-slate-100 text-slate-600 hover:bg-red-100"
+                                          }`}
+                                        >
+                                          False
+                                        </button>
+                                        {module.content.trueFalseStatements &&
+                                          module.content.trueFalseStatements
+                                            .length > 1 && (
+                                            <button
+                                              onClick={() => {
+                                                const newStatements =
+                                                  module.content.trueFalseStatements?.filter(
+                                                    (_, idx) => idx !== i,
+                                                  ) || [];
+                                                updateModuleContent(module.id, {
+                                                  trueFalseStatements:
+                                                    newStatements,
+                                                });
+                                              }}
+                                              className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                            >
+                                              <span className="material-symbols-outlined text-[18px]">
+                                                close
+                                              </span>
+                                            </button>
+                                          )}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                ),
+                              )}
                             </div>
                             <button
                               onClick={() => {
                                 const newStatements = [
                                   ...(module.content.trueFalseStatements || []),
-                                  { id: Date.now().toString(), statement: "", isTrue: true }
+                                  {
+                                    id: Date.now().toString(),
+                                    statement: "",
+                                    isTrue: true,
+                                  },
                                 ];
-                                updateModuleContent(module.id, { trueFalseStatements: newStatements });
+                                updateModuleContent(module.id, {
+                                  trueFalseStatements: newStatements,
+                                });
                               }}
                               className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
                             >
@@ -2225,13 +2984,19 @@ export default function LessonEditorPage() {
                             <input
                               type="text"
                               value={module.content.imageChoiceTitle || ""}
-                              onChange={(e) => updateModuleContent(module.id, { imageChoiceTitle: e.target.value })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  imageChoiceTitle: e.target.value,
+                                })
+                              }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                               placeholder="Title (e.g., Look at the pictures and choose the correct words)"
                             />
 
                             <div className="flex items-center justify-between">
-                              <p className="text-sm text-slate-600 font-medium">Image Items</p>
+                              <p className="text-sm text-slate-600 font-medium">
+                                Image Items
+                              </p>
                               <button
                                 onClick={() => {
                                   const newItem: ImageChoiceItem = {
@@ -2239,141 +3004,253 @@ export default function LessonEditorPage() {
                                     imageUrl: "",
                                     imageName: "",
                                     correctOption: "",
-                                    options: ["", "", ""]
+                                    options: ["", "", ""],
                                   };
                                   updateModuleContent(module.id, {
-                                    imageChoiceItems: [...(module.content.imageChoiceItems || []), newItem]
+                                    imageChoiceItems: [
+                                      ...(module.content.imageChoiceItems ||
+                                        []),
+                                      newItem,
+                                    ],
                                   });
                                 }}
                                 className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-sm">add</span>
+                                <span className="material-symbols-outlined text-sm">
+                                  add
+                                </span>
                                 Add Image
                               </button>
                             </div>
 
-                            {(!module.content.imageChoiceItems || module.content.imageChoiceItems.length === 0) && (
+                            {(!module.content.imageChoiceItems ||
+                              module.content.imageChoiceItems.length === 0) && (
                               <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200">
-                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">imagesmode</span>
-                                <p className="text-sm text-slate-400">No images yet. Click "Add Image" to get started.</p>
+                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">
+                                  imagesmode
+                                </span>
+                                <p className="text-sm text-slate-400">
+                                  No images yet. Click "Add Image" to get
+                                  started.
+                                </p>
                               </div>
                             )}
 
                             {/* Image Choice Items Grid */}
-                            {module.content.imageChoiceItems && module.content.imageChoiceItems.length > 0 && (
-                              <div className={`grid gap-4 ${
-                                module.content.imageChoiceItems.length === 1
-                                  ? "grid-cols-1 max-w-md mx-auto"
-                                  : module.content.imageChoiceItems.length === 2
-                                  ? "grid-cols-2"
-                                  : "grid-cols-2 lg:grid-cols-3"
-                              }`}>
-                                {module.content.imageChoiceItems.map((item, index) => (
-                                  <div key={item.id} className="bg-white p-3 rounded-lg border-2 border-sky-200">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-xs font-semibold text-sky-700">Image {index + 1}</span>
-                                      <button
-                                        onClick={() => {
-                                          const newItems = module.content.imageChoiceItems?.filter(i => i.id !== item.id) || [];
-                                          updateModuleContent(module.id, { imageChoiceItems: newItems });
-                                        }}
-                                        className="text-red-500 hover:text-red-700"
+                            {module.content.imageChoiceItems &&
+                              module.content.imageChoiceItems.length > 0 && (
+                                <div
+                                  className={`grid gap-4 ${
+                                    module.content.imageChoiceItems.length === 1
+                                      ? "grid-cols-1 max-w-md mx-auto"
+                                      : module.content.imageChoiceItems
+                                            .length === 2
+                                        ? "grid-cols-2"
+                                        : "grid-cols-2 lg:grid-cols-3"
+                                  }`}
+                                >
+                                  {module.content.imageChoiceItems.map(
+                                    (item, index) => (
+                                      <div
+                                        key={item.id}
+                                        className="bg-white p-3 rounded-lg border-2 border-sky-200"
                                       >
-                                        <span className="material-symbols-outlined text-sm">delete</span>
-                                      </button>
-                                    </div>
-
-                                    {/* Image Upload/Preview */}
-                                    {item.imageUrl ? (
-                                      <div className="relative group mb-3">
-                                        <img src={item.imageUrl} alt="" className="w-full aspect-square object-cover rounded-lg" />
-                                        <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={async (e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) {
-                                                const { processedFile } = await processFileForUpload(file);
-                                                const lessonId = actualLessonId || params.id as string;
-                                                const { url } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
-                                                if (url) {
-                                                  const newItems = module.content.imageChoiceItems?.map(i =>
-                                                    i.id === item.id ? { ...i, imageUrl: url, imageName: file.name } : i
-                                                  ) || [];
-                                                  updateModuleContent(module.id, { imageChoiceItems: newItems });
-                                                }
-                                              }
-                                            }}
-                                            className="hidden"
-                                          />
-                                          <span className="text-white text-xs font-medium">Change Image</span>
-                                        </label>
-                                      </div>
-                                    ) : (
-                                      <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-sky-300 rounded-lg cursor-pointer hover:bg-sky-50/50 mb-3">
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              const { processedFile } = await processFileForUpload(file);
-                                              const lessonId = actualLessonId || params.id as string;
-                                              const { url } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
-                                              if (url) {
-                                                const newItems = module.content.imageChoiceItems?.map(i =>
-                                                  i.id === item.id ? { ...i, imageUrl: url, imageName: file.name } : i
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-xs font-semibold text-sky-700">
+                                            Image {index + 1}
+                                          </span>
+                                          <button
+                                            onClick={() => {
+                                              const newItems =
+                                                module.content.imageChoiceItems?.filter(
+                                                  (i) => i.id !== item.id,
                                                 ) || [];
-                                                updateModuleContent(module.id, { imageChoiceItems: newItems });
-                                              }
-                                            }
-                                          }}
-                                          className="hidden"
-                                        />
-                                        <span className="material-symbols-outlined text-3xl text-sky-300 mb-1">add_photo_alternate</span>
-                                        <span className="text-xs text-sky-500">Upload image</span>
-                                      </label>
-                                    )}
+                                              updateModuleContent(module.id, {
+                                                imageChoiceItems: newItems,
+                                              });
+                                            }}
+                                            className="text-red-500 hover:text-red-700"
+                                          >
+                                            <span className="material-symbols-outlined text-sm">
+                                              delete
+                                            </span>
+                                          </button>
+                                        </div>
 
-                                    {/* Correct Answer */}
-                                    <input
-                                      type="text"
-                                      value={item.correctOption}
-                                      onChange={(e) => {
-                                        const newItems = module.content.imageChoiceItems?.map(i =>
-                                          i.id === item.id ? { ...i, correctOption: e.target.value } : i
-                                        ) || [];
-                                        updateModuleContent(module.id, { imageChoiceItems: newItems });
-                                      }}
-                                      className="w-full bg-green-50 border border-green-300 rounded px-2 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                      placeholder="Correct answer"
-                                    />
+                                        {/* Image Upload/Preview */}
+                                        {item.imageUrl ? (
+                                          <div className="relative group mb-3">
+                                            <img
+                                              src={item.imageUrl}
+                                              alt=""
+                                              className="w-full aspect-square object-cover rounded-lg"
+                                            />
+                                            <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={async (e) => {
+                                                  const file =
+                                                    e.target.files?.[0];
+                                                  if (file) {
+                                                    const { processedFile } =
+                                                      await processFileForUpload(
+                                                        file,
+                                                      );
+                                                    const lessonId =
+                                                      actualLessonId ||
+                                                      (params.id as string);
+                                                    const { url } =
+                                                      await uploadFile(
+                                                        processedFile,
+                                                        `lessons/${params.level}/${lessonId}`,
+                                                      );
+                                                    if (url) {
+                                                      const newItems =
+                                                        module.content.imageChoiceItems?.map(
+                                                          (i) =>
+                                                            i.id === item.id
+                                                              ? {
+                                                                  ...i,
+                                                                  imageUrl: url,
+                                                                  imageName:
+                                                                    file.name,
+                                                                }
+                                                              : i,
+                                                        ) || [];
+                                                      updateModuleContent(
+                                                        module.id,
+                                                        {
+                                                          imageChoiceItems:
+                                                            newItems,
+                                                        },
+                                                      );
+                                                    }
+                                                  }
+                                                }}
+                                                className="hidden"
+                                              />
+                                              <span className="text-white text-xs font-medium">
+                                                Change Image
+                                              </span>
+                                            </label>
+                                          </div>
+                                        ) : (
+                                          <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-sky-300 rounded-lg cursor-pointer hover:bg-sky-50/50 mb-3">
+                                            <input
+                                              type="file"
+                                              accept="image/*"
+                                              onChange={async (e) => {
+                                                const file =
+                                                  e.target.files?.[0];
+                                                if (file) {
+                                                  const { processedFile } =
+                                                    await processFileForUpload(
+                                                      file,
+                                                    );
+                                                  const lessonId =
+                                                    actualLessonId ||
+                                                    (params.id as string);
+                                                  const { url } =
+                                                    await uploadFile(
+                                                      processedFile,
+                                                      `lessons/${params.level}/${lessonId}`,
+                                                    );
+                                                  if (url) {
+                                                    const newItems =
+                                                      module.content.imageChoiceItems?.map(
+                                                        (i) =>
+                                                          i.id === item.id
+                                                            ? {
+                                                                ...i,
+                                                                imageUrl: url,
+                                                                imageName:
+                                                                  file.name,
+                                                              }
+                                                            : i,
+                                                      ) || [];
+                                                    updateModuleContent(
+                                                      module.id,
+                                                      {
+                                                        imageChoiceItems:
+                                                          newItems,
+                                                      },
+                                                    );
+                                                  }
+                                                }
+                                              }}
+                                              className="hidden"
+                                            />
+                                            <span className="material-symbols-outlined text-3xl text-sky-300 mb-1">
+                                              add_photo_alternate
+                                            </span>
+                                            <span className="text-xs text-sky-500">
+                                              Upload image
+                                            </span>
+                                          </label>
+                                        )}
 
-                                    {/* Wrong Options */}
-                                    <div className="space-y-1.5">
-                                      {item.options.map((opt, optIndex) => (
+                                        {/* Correct Answer */}
                                         <input
-                                          key={optIndex}
                                           type="text"
-                                          value={opt}
+                                          value={item.correctOption}
                                           onChange={(e) => {
-                                            const newOptions = [...item.options];
-                                            newOptions[optIndex] = e.target.value;
-                                            const newItems = module.content.imageChoiceItems?.map(i =>
-                                              i.id === item.id ? { ...i, options: newOptions } : i
-                                            ) || [];
-                                            updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                            const newItems =
+                                              module.content.imageChoiceItems?.map(
+                                                (i) =>
+                                                  i.id === item.id
+                                                    ? {
+                                                        ...i,
+                                                        correctOption:
+                                                          e.target.value,
+                                                      }
+                                                    : i,
+                                              ) || [];
+                                            updateModuleContent(module.id, {
+                                              imageChoiceItems: newItems,
+                                            });
                                           }}
-                                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                          placeholder={`Wrong option ${optIndex + 1}`}
+                                          className="w-full bg-green-50 border border-green-300 rounded px-2 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                          placeholder="Correct answer"
                                         />
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+
+                                        {/* Wrong Options */}
+                                        <div className="space-y-1.5">
+                                          {item.options.map((opt, optIndex) => (
+                                            <input
+                                              key={optIndex}
+                                              type="text"
+                                              value={opt}
+                                              onChange={(e) => {
+                                                const newOptions = [
+                                                  ...item.options,
+                                                ];
+                                                newOptions[optIndex] =
+                                                  e.target.value;
+                                                const newItems =
+                                                  module.content.imageChoiceItems?.map(
+                                                    (i) =>
+                                                      i.id === item.id
+                                                        ? {
+                                                            ...i,
+                                                            options: newOptions,
+                                                          }
+                                                        : i,
+                                                  ) || [];
+                                                updateModuleContent(module.id, {
+                                                  imageChoiceItems: newItems,
+                                                });
+                                              }}
+                                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                              placeholder={`Wrong option ${optIndex + 1}`}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              )}
                           </div>
                         )}
 
@@ -2383,271 +3260,504 @@ export default function LessonEditorPage() {
                             <input
                               type="text"
                               value={module.content.inlineChoiceTitle || ""}
-                              onChange={(e) => updateModuleContent(module.id, { inlineChoiceTitle: e.target.value })}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, {
+                                  inlineChoiceTitle: e.target.value,
+                                })
+                              }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                               placeholder="Title (e.g., Read each sentence and choose the correct word)"
                             />
 
                             <div className="flex items-center justify-between">
-                              <p className="text-sm text-slate-600 font-medium">Sentences</p>
+                              <p className="text-sm text-slate-600 font-medium">
+                                Sentences
+                              </p>
                               <button
                                 onClick={() => {
                                   const newSentence: InlineChoiceSentence = {
                                     id: Date.now().toString(),
                                     text: "",
-                                    blanks: [{ correctAnswer: "", options: ["", ""] }]
+                                    blanks: [
+                                      { correctAnswer: "", options: ["", ""] },
+                                    ],
                                   };
                                   updateModuleContent(module.id, {
-                                    inlineChoiceSentences: [...(module.content.inlineChoiceSentences || []), newSentence]
+                                    inlineChoiceSentences: [
+                                      ...(module.content
+                                        .inlineChoiceSentences || []),
+                                      newSentence,
+                                    ],
                                   });
                                 }}
                                 className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-sm">add</span>
+                                <span className="material-symbols-outlined text-sm">
+                                  add
+                                </span>
                                 Add Sentence
                               </button>
                             </div>
 
                             <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
-                              Use <code className="bg-slate-200 px-1 rounded">1.</code>, <code className="bg-slate-200 px-1 rounded">2.</code>, etc. to mark dropdown positions in your sentence.
+                              Use{" "}
+                              <code className="bg-slate-200 px-1 rounded">
+                                1.
+                              </code>
+                              ,{" "}
+                              <code className="bg-slate-200 px-1 rounded">
+                                2.
+                              </code>
+                              , etc. to mark dropdown positions in your
+                              sentence.
                             </p>
 
                             {/* Sentences List */}
                             <div className="space-y-4">
-                              {module.content.inlineChoiceSentences?.map((sentence, sentenceIndex) => (
-                                <div key={sentence.id} className="bg-white p-4 rounded-lg border-2 border-violet-200">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <span className="text-xs font-semibold text-violet-700">{sentenceIndex + 1}.</span>
-                                    {module.content.inlineChoiceSentences && module.content.inlineChoiceSentences.length > 1 && (
+                              {module.content.inlineChoiceSentences?.map(
+                                (sentence, sentenceIndex) => (
+                                  <div
+                                    key={sentence.id}
+                                    className="bg-white p-4 rounded-lg border-2 border-violet-200"
+                                  >
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span className="text-xs font-semibold text-violet-700">
+                                        {sentenceIndex + 1}.
+                                      </span>
+                                      {module.content.inlineChoiceSentences &&
+                                        module.content.inlineChoiceSentences
+                                          .length > 1 && (
+                                          <button
+                                            onClick={() => {
+                                              const newSentences =
+                                                module.content.inlineChoiceSentences?.filter(
+                                                  (s) => s.id !== sentence.id,
+                                                ) || [];
+                                              updateModuleContent(module.id, {
+                                                inlineChoiceSentences:
+                                                  newSentences,
+                                              });
+                                            }}
+                                            className="text-red-500 hover:text-red-700"
+                                          >
+                                            <span className="material-symbols-outlined text-sm">
+                                              delete
+                                            </span>
+                                          </button>
+                                        )}
+                                    </div>
+
+                                    {/* Sentence Text Toolbar */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                      {/* Add Button */}
                                       <button
+                                        type="button"
                                         onClick={() => {
-                                          const newSentences = module.content.inlineChoiceSentences?.filter(s => s.id !== sentence.id) || [];
-                                          updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          const textarea =
+                                            document.getElementById(
+                                              `inlinechoice-textarea-${sentence.id}`,
+                                            ) as HTMLTextAreaElement;
+                                          if (textarea) {
+                                            const start =
+                                              textarea.selectionStart;
+                                            const text = sentence.text || "";
+                                            // Count existing blanks to determine next number
+                                            const matches =
+                                              text.match(/\d+\./g) || [];
+                                            const nextNum = matches.length + 1;
+                                            const newText =
+                                              text.substring(0, start) +
+                                              `${nextNum}.` +
+                                              text.substring(start);
+                                            const newSentences =
+                                              module.content.inlineChoiceSentences?.map(
+                                                (s) =>
+                                                  s.id === sentence.id
+                                                    ? { ...s, text: newText }
+                                                    : s,
+                                              ) || [];
+                                            updateModuleContent(module.id, {
+                                              inlineChoiceSentences:
+                                                newSentences,
+                                            });
+                                            // Focus back and set cursor position
+                                            setTimeout(() => {
+                                              textarea.focus();
+                                              const newPos =
+                                                start + `${nextNum}.`.length;
+                                              textarea.setSelectionRange(
+                                                newPos,
+                                                newPos,
+                                              );
+                                            }, 0);
+                                          }
                                         }}
-                                        className="text-red-500 hover:text-red-700"
+                                        className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100 transition-colors text-sm"
+                                        title="Add blank (1., 2., etc.)"
                                       >
-                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                        <span className="material-symbols-outlined text-[16px]">
+                                          add
+                                        </span>
+                                        <span className="text-xs font-medium">
+                                          Add
+                                        </span>
                                       </button>
-                                    )}
-                                  </div>
 
-                                  {/* Sentence Text Toolbar */}
-                                  <div className="flex items-center gap-2 mb-2">
-                                    {/* Add Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
-                                        if (textarea) {
-                                          const start = textarea.selectionStart;
-                                          const text = sentence.text || "";
-                                          // Count existing blanks to determine next number
-                                          const matches = text.match(/\d+\./g) || [];
-                                          const nextNum = matches.length + 1;
-                                          const newText = text.substring(0, start) + `${nextNum}.` + text.substring(start);
-                                          const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                            s.id === sentence.id ? { ...s, text: newText } : s
-                                          ) || [];
-                                          updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                          // Focus back and set cursor position
-                                          setTimeout(() => {
-                                            textarea.focus();
-                                            const newPos = start + `${nextNum}.`.length;
-                                            textarea.setSelectionRange(newPos, newPos);
-                                          }, 0);
-                                        }
-                                      }}
-                                      className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100 transition-colors text-sm"
-                                      title="Add blank (1., 2., etc.)"
-                                    >
-                                      <span className="material-symbols-outlined text-[16px]">add</span>
-                                      <span className="text-xs font-medium">Add</span>
-                                    </button>
+                                      <div className="w-px h-5 bg-slate-200" />
 
-                                    <div className="w-px h-5 bg-slate-200" />
-
-                                    {/* Bold Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
-                                        if (textarea) {
-                                          const start = textarea.selectionStart;
-                                          const end = textarea.selectionEnd;
-                                          const text = sentence.text || "";
-                                          const selectedText = text.substring(start, end);
-                                          if (selectedText) {
-                                            const newText = text.substring(0, start) + `**${selectedText}**` + text.substring(end);
-                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                              s.id === sentence.id ? { ...s, text: newText } : s
-                                            ) || [];
-                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                          }
-                                        }
-                                      }}
-                                      className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                                      title="Bold (select text first)"
-                                    >
-                                      <span className="font-bold text-xs">B</span>
-                                    </button>
-
-                                    {/* Italic Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
-                                        if (textarea) {
-                                          const start = textarea.selectionStart;
-                                          const end = textarea.selectionEnd;
-                                          const text = sentence.text || "";
-                                          const selectedText = text.substring(start, end);
-                                          if (selectedText) {
-                                            const newText = text.substring(0, start) + `*${selectedText}*` + text.substring(end);
-                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                              s.id === sentence.id ? { ...s, text: newText } : s
-                                            ) || [];
-                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                          }
-                                        }
-                                      }}
-                                      className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                                      title="Italic (select text first)"
-                                    >
-                                      <span className="italic text-xs">I</span>
-                                    </button>
-
-                                    {/* Underline Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const textarea = document.getElementById(`inlinechoice-textarea-${sentence.id}`) as HTMLTextAreaElement;
-                                        if (textarea) {
-                                          const start = textarea.selectionStart;
-                                          const end = textarea.selectionEnd;
-                                          const text = sentence.text || "";
-                                          const selectedText = text.substring(start, end);
-                                          if (selectedText) {
-                                            const newText = text.substring(0, start) + `__${selectedText}__` + text.substring(end);
-                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                              s.id === sentence.id ? { ...s, text: newText } : s
-                                            ) || [];
-                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                          }
-                                        }
-                                      }}
-                                      className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
-                                      title="Underline (select text first)"
-                                    >
-                                      <span className="underline text-xs">U</span>
-                                    </button>
-                                  </div>
-
-                                  {/* Sentence Text */}
-                                  <textarea
-                                    id={`inlinechoice-textarea-${sentence.id}`}
-                                    value={sentence.text}
-                                    onChange={(e) => {
-                                      const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                        s.id === sentence.id ? { ...s, text: e.target.value } : s
-                                      ) || [];
-                                      updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                    }}
-                                    className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
-                                    placeholder="Enter sentence with 1., 2. for dropdowns. E.g.: The cat 1. on the mat."
-                                    rows={4}
-                                  />
-
-                                  {/* Blanks */}
-                                  <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs text-slate-600 font-medium">Dropdown Options</span>
+                                      {/* Bold Button */}
                                       <button
+                                        type="button"
                                         onClick={() => {
-                                          const newBlanks = [...sentence.blanks, { correctAnswer: "", options: ["", ""] }];
-                                          const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                            s.id === sentence.id ? { ...s, blanks: newBlanks } : s
-                                          ) || [];
-                                          updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
+                                          const textarea =
+                                            document.getElementById(
+                                              `inlinechoice-textarea-${sentence.id}`,
+                                            ) as HTMLTextAreaElement;
+                                          if (textarea) {
+                                            const start =
+                                              textarea.selectionStart;
+                                            const end = textarea.selectionEnd;
+                                            const text = sentence.text || "";
+                                            const selectedText = text.substring(
+                                              start,
+                                              end,
+                                            );
+                                            if (selectedText) {
+                                              const newText =
+                                                text.substring(0, start) +
+                                                `**${selectedText}**` +
+                                                text.substring(end);
+                                              const newSentences =
+                                                module.content.inlineChoiceSentences?.map(
+                                                  (s) =>
+                                                    s.id === sentence.id
+                                                      ? { ...s, text: newText }
+                                                      : s,
+                                                ) || [];
+                                              updateModuleContent(module.id, {
+                                                inlineChoiceSentences:
+                                                  newSentences,
+                                              });
+                                            }
+                                          }
                                         }}
-                                        className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                                        className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                        title="Bold (select text first)"
                                       >
-                                        + Add dropdown
+                                        <span className="font-bold text-xs">
+                                          B
+                                        </span>
+                                      </button>
+
+                                      {/* Italic Button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const textarea =
+                                            document.getElementById(
+                                              `inlinechoice-textarea-${sentence.id}`,
+                                            ) as HTMLTextAreaElement;
+                                          if (textarea) {
+                                            const start =
+                                              textarea.selectionStart;
+                                            const end = textarea.selectionEnd;
+                                            const text = sentence.text || "";
+                                            const selectedText = text.substring(
+                                              start,
+                                              end,
+                                            );
+                                            if (selectedText) {
+                                              const newText =
+                                                text.substring(0, start) +
+                                                `*${selectedText}*` +
+                                                text.substring(end);
+                                              const newSentences =
+                                                module.content.inlineChoiceSentences?.map(
+                                                  (s) =>
+                                                    s.id === sentence.id
+                                                      ? { ...s, text: newText }
+                                                      : s,
+                                                ) || [];
+                                              updateModuleContent(module.id, {
+                                                inlineChoiceSentences:
+                                                  newSentences,
+                                              });
+                                            }
+                                          }
+                                        }}
+                                        className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                        title="Italic (select text first)"
+                                      >
+                                        <span className="italic text-xs">
+                                          I
+                                        </span>
+                                      </button>
+
+                                      {/* Underline Button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const textarea =
+                                            document.getElementById(
+                                              `inlinechoice-textarea-${sentence.id}`,
+                                            ) as HTMLTextAreaElement;
+                                          if (textarea) {
+                                            const start =
+                                              textarea.selectionStart;
+                                            const end = textarea.selectionEnd;
+                                            const text = sentence.text || "";
+                                            const selectedText = text.substring(
+                                              start,
+                                              end,
+                                            );
+                                            if (selectedText) {
+                                              const newText =
+                                                text.substring(0, start) +
+                                                `__${selectedText}__` +
+                                                text.substring(end);
+                                              const newSentences =
+                                                module.content.inlineChoiceSentences?.map(
+                                                  (s) =>
+                                                    s.id === sentence.id
+                                                      ? { ...s, text: newText }
+                                                      : s,
+                                                ) || [];
+                                              updateModuleContent(module.id, {
+                                                inlineChoiceSentences:
+                                                  newSentences,
+                                              });
+                                            }
+                                          }
+                                        }}
+                                        className="flex items-center justify-center size-7 rounded border border-slate-200 hover:bg-slate-100 transition-colors"
+                                        title="Underline (select text first)"
+                                      >
+                                        <span className="underline text-xs">
+                                          U
+                                        </span>
                                       </button>
                                     </div>
 
-                                    {sentence.blanks.map((blank, blankIndex) => (
-                                      <div key={blankIndex} className="bg-violet-50 p-3 rounded-lg">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <span className="text-xs font-medium text-violet-600">Dropdown {blankIndex + 1}.</span>
-                                          {sentence.blanks.length > 1 && (
-                                            <button
-                                              onClick={() => {
-                                                const newBlanks = sentence.blanks.filter((_, i) => i !== blankIndex);
-                                                const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                                  s.id === sentence.id ? { ...s, blanks: newBlanks } : s
-                                                ) || [];
-                                                updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                              }}
-                                              className="text-red-500 hover:text-red-700"
-                                            >
-                                              <span className="material-symbols-outlined text-[14px]">close</span>
-                                            </button>
-                                          )}
-                                        </div>
-                                        <input
-                                          type="text"
-                                          value={blank.correctAnswer}
-                                          onChange={(e) => {
-                                            const newBlanks = [...sentence.blanks];
-                                            newBlanks[blankIndex] = { ...newBlanks[blankIndex], correctAnswer: e.target.value };
-                                            const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                              s.id === sentence.id ? { ...s, blanks: newBlanks } : s
-                                            ) || [];
-                                            updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                          }}
-                                          className="w-full bg-green-50 border border-green-300 rounded px-2 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                          placeholder="Correct answer"
-                                        />
-                                        <div className="flex gap-2 flex-wrap">
-                                          {blank.options.map((opt, optIndex) => (
-                                            <input
-                                              key={optIndex}
-                                              type="text"
-                                              value={opt}
-                                              onChange={(e) => {
-                                                const newOptions = [...blank.options];
-                                                newOptions[optIndex] = e.target.value;
-                                                const newBlanks = [...sentence.blanks];
-                                                newBlanks[blankIndex] = { ...newBlanks[blankIndex], options: newOptions };
-                                                const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                                  s.id === sentence.id ? { ...s, blanks: newBlanks } : s
-                                                ) || [];
-                                                updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                              }}
-                                              className="flex-1 min-w-[100px] bg-white border border-slate-200 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                              placeholder={`Wrong ${optIndex + 1}`}
-                                            />
-                                          ))}
-                                          <button
-                                            onClick={() => {
-                                              const newOptions = [...blank.options, ""];
-                                              const newBlanks = [...sentence.blanks];
-                                              newBlanks[blankIndex] = { ...newBlanks[blankIndex], options: newOptions };
-                                              const newSentences = module.content.inlineChoiceSentences?.map(s =>
-                                                s.id === sentence.id ? { ...s, blanks: newBlanks } : s
+                                    {/* Sentence Text */}
+                                    <textarea
+                                      id={`inlinechoice-textarea-${sentence.id}`}
+                                      value={sentence.text}
+                                      onChange={(e) => {
+                                        const newSentences =
+                                          module.content.inlineChoiceSentences?.map(
+                                            (s) =>
+                                              s.id === sentence.id
+                                                ? { ...s, text: e.target.value }
+                                                : s,
+                                          ) || [];
+                                        updateModuleContent(module.id, {
+                                          inlineChoiceSentences: newSentences,
+                                        });
+                                      }}
+                                      className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                                      placeholder="Enter sentence with 1., 2. for dropdowns. E.g.: The cat 1. on the mat."
+                                      rows={4}
+                                    />
+
+                                    {/* Blanks */}
+                                    <div className="space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs text-slate-600 font-medium">
+                                          Dropdown Options
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            const newBlanks = [
+                                              ...sentence.blanks,
+                                              {
+                                                correctAnswer: "",
+                                                options: ["", ""],
+                                              },
+                                            ];
+                                            const newSentences =
+                                              module.content.inlineChoiceSentences?.map(
+                                                (s) =>
+                                                  s.id === sentence.id
+                                                    ? {
+                                                        ...s,
+                                                        blanks: newBlanks,
+                                                      }
+                                                    : s,
                                               ) || [];
-                                              updateModuleContent(module.id, { inlineChoiceSentences: newSentences });
-                                            }}
-                                            className="px-2 py-1.5 text-violet-600 hover:bg-violet-100 rounded text-xs"
-                                          >
-                                            +
-                                          </button>
-                                        </div>
+                                            updateModuleContent(module.id, {
+                                              inlineChoiceSentences:
+                                                newSentences,
+                                            });
+                                          }}
+                                          className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                                        >
+                                          + Add dropdown
+                                        </button>
                                       </div>
-                                    ))}
+
+                                      {sentence.blanks.map(
+                                        (blank, blankIndex) => (
+                                          <div
+                                            key={blankIndex}
+                                            className="bg-violet-50 p-3 rounded-lg"
+                                          >
+                                            <div className="flex items-center justify-between mb-2">
+                                              <span className="text-xs font-medium text-violet-600">
+                                                Dropdown {blankIndex + 1}.
+                                              </span>
+                                              {sentence.blanks.length > 1 && (
+                                                <button
+                                                  onClick={() => {
+                                                    const newBlanks =
+                                                      sentence.blanks.filter(
+                                                        (_, i) =>
+                                                          i !== blankIndex,
+                                                      );
+                                                    const newSentences =
+                                                      module.content.inlineChoiceSentences?.map(
+                                                        (s) =>
+                                                          s.id === sentence.id
+                                                            ? {
+                                                                ...s,
+                                                                blanks:
+                                                                  newBlanks,
+                                                              }
+                                                            : s,
+                                                      ) || [];
+                                                    updateModuleContent(
+                                                      module.id,
+                                                      {
+                                                        inlineChoiceSentences:
+                                                          newSentences,
+                                                      },
+                                                    );
+                                                  }}
+                                                  className="text-red-500 hover:text-red-700"
+                                                >
+                                                  <span className="material-symbols-outlined text-[14px]">
+                                                    close
+                                                  </span>
+                                                </button>
+                                              )}
+                                            </div>
+                                            <input
+                                              type="text"
+                                              value={blank.correctAnswer}
+                                              onChange={(e) => {
+                                                const newBlanks = [
+                                                  ...sentence.blanks,
+                                                ];
+                                                newBlanks[blankIndex] = {
+                                                  ...newBlanks[blankIndex],
+                                                  correctAnswer: e.target.value,
+                                                };
+                                                const newSentences =
+                                                  module.content.inlineChoiceSentences?.map(
+                                                    (s) =>
+                                                      s.id === sentence.id
+                                                        ? {
+                                                            ...s,
+                                                            blanks: newBlanks,
+                                                          }
+                                                        : s,
+                                                  ) || [];
+                                                updateModuleContent(module.id, {
+                                                  inlineChoiceSentences:
+                                                    newSentences,
+                                                });
+                                              }}
+                                              className="w-full bg-green-50 border border-green-300 rounded px-2 py-1.5 text-sm mb-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                              placeholder="Correct answer"
+                                            />
+                                            <div className="flex gap-2 flex-wrap">
+                                              {blank.options.map(
+                                                (opt, optIndex) => (
+                                                  <input
+                                                    key={optIndex}
+                                                    type="text"
+                                                    value={opt}
+                                                    onChange={(e) => {
+                                                      const newOptions = [
+                                                        ...blank.options,
+                                                      ];
+                                                      newOptions[optIndex] =
+                                                        e.target.value;
+                                                      const newBlanks = [
+                                                        ...sentence.blanks,
+                                                      ];
+                                                      newBlanks[blankIndex] = {
+                                                        ...newBlanks[
+                                                          blankIndex
+                                                        ],
+                                                        options: newOptions,
+                                                      };
+                                                      const newSentences =
+                                                        module.content.inlineChoiceSentences?.map(
+                                                          (s) =>
+                                                            s.id === sentence.id
+                                                              ? {
+                                                                  ...s,
+                                                                  blanks:
+                                                                    newBlanks,
+                                                                }
+                                                              : s,
+                                                        ) || [];
+                                                      updateModuleContent(
+                                                        module.id,
+                                                        {
+                                                          inlineChoiceSentences:
+                                                            newSentences,
+                                                        },
+                                                      );
+                                                    }}
+                                                    className="flex-1 min-w-[100px] bg-white border border-slate-200 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                                    placeholder={`Wrong ${optIndex + 1}`}
+                                                  />
+                                                ),
+                                              )}
+                                              <button
+                                                onClick={() => {
+                                                  const newOptions = [
+                                                    ...blank.options,
+                                                    "",
+                                                  ];
+                                                  const newBlanks = [
+                                                    ...sentence.blanks,
+                                                  ];
+                                                  newBlanks[blankIndex] = {
+                                                    ...newBlanks[blankIndex],
+                                                    options: newOptions,
+                                                  };
+                                                  const newSentences =
+                                                    module.content.inlineChoiceSentences?.map(
+                                                      (s) =>
+                                                        s.id === sentence.id
+                                                          ? {
+                                                              ...s,
+                                                              blanks: newBlanks,
+                                                            }
+                                                          : s,
+                                                    ) || [];
+                                                  updateModuleContent(
+                                                    module.id,
+                                                    {
+                                                      inlineChoiceSentences:
+                                                        newSentences,
+                                                    },
+                                                  );
+                                                }}
+                                                className="px-2 py-1.5 text-violet-600 hover:bg-violet-100 rounded text-xs"
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                ),
+                              )}
                             </div>
                           </div>
                         )}
@@ -2655,78 +3765,163 @@ export default function LessonEditorPage() {
                         {/* AUDIO MODULE */}
                         {module.type === "audio" && (
                           <div className="space-y-4">
+                            {/* Playback Mode Selector */}
+                            <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg">
+                              <span className="text-sm font-medium text-slate-700">Playback Mode:</span>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => updateModuleContent(module.id, { audioPlayMode: "controls" })}
+                                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+                                    (module.content.audioPlayMode || "controls") === "controls"
+                                      ? "bg-green-600 text-white"
+                                      : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                                  Full Player
+                                </button>
+                                <button
+                                  onClick={() => updateModuleContent(module.id, { audioPlayMode: "click" })}
+                                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+                                    module.content.audioPlayMode === "click"
+                                      ? "bg-green-600 text-white"
+                                      : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">touch_app</span>
+                                  Click to Play
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-500 -mt-2">
+                              {module.content.audioPlayMode === "click"
+                                ? "Click to Play: Ideal for short audio (words, short phrases)"
+                                : "Full Player: Ideal for longer audio (with pause, seek controls)"}
+                            </p>
+
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm text-slate-600 font-medium">Audio Items</p>
+                              <p className="text-sm text-slate-600 font-medium">
+                                Audio Items
+                              </p>
                               <button
                                 onClick={() => addAudioItem(module.id)}
                                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-sm">add</span>
+                                <span className="material-symbols-outlined text-sm">
+                                  add
+                                </span>
                                 Add Audio
                               </button>
                             </div>
 
-                            {(!module.content.audioItems || module.content.audioItems.length === 0) && (
+                            {(!module.content.audioItems ||
+                              module.content.audioItems.length === 0) && (
                               <div
                                 className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200 transition-colors hover:border-green-300 hover:bg-green-50/30"
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.currentTarget.classList.add("border-green-500", "bg-green-50");
+                                  e.currentTarget.classList.add(
+                                    "border-green-500",
+                                    "bg-green-50",
+                                  );
                                 }}
                                 onDragLeave={(e) => {
-                                  e.currentTarget.classList.remove("border-green-500", "bg-green-50");
+                                  e.currentTarget.classList.remove(
+                                    "border-green-500",
+                                    "bg-green-50",
+                                  );
                                 }}
                                 onDrop={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.currentTarget.classList.remove("border-green-500", "bg-green-50");
-                                  const fileData = e.dataTransfer.getData("library-file");
+                                  e.currentTarget.classList.remove(
+                                    "border-green-500",
+                                    "bg-green-50",
+                                  );
+                                  const fileData =
+                                    e.dataTransfer.getData("library-file");
                                   if (fileData) {
                                     try {
                                       const file = JSON.parse(fileData);
                                       if (file.type === "audio") {
                                         addAudioItem(module.id);
                                         setTimeout(() => {
-                                          const audioItems = modules.find(m => m.id === module.id)?.content.audioItems;
-                                          if (audioItems && audioItems.length > 0) {
-                                            const lastItem = audioItems[audioItems.length - 1];
+                                          const audioItems = modules.find(
+                                            (m) => m.id === module.id,
+                                          )?.content.audioItems;
+                                          if (
+                                            audioItems &&
+                                            audioItems.length > 0
+                                          ) {
+                                            const lastItem =
+                                              audioItems[audioItems.length - 1];
                                             updateModuleContent(module.id, {
-                                              audioItems: audioItems.map((item: any) =>
-                                                item.id === lastItem.id ? { ...item, audioUrl: file.url, audioName: file.name } : item
-                                              )
+                                              audioItems: audioItems.map(
+                                                (item: any) =>
+                                                  item.id === lastItem.id
+                                                    ? {
+                                                        ...item,
+                                                        audioUrl: file.url,
+                                                        audioName: file.name,
+                                                      }
+                                                    : item,
+                                              ),
                                             });
                                           }
                                         }, 50);
                                       }
                                     } catch (err) {
-                                      console.error("Failed to parse dropped file:", err);
+                                      console.error(
+                                        "Failed to parse dropped file:",
+                                        err,
+                                      );
                                     }
                                   }
                                 }}
                               >
-                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">volume_up</span>
-                                <p className="text-sm text-slate-400">No audio items yet. Click &quot;Add Audio&quot; or drag from Library.</p>
+                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">
+                                  volume_up
+                                </span>
+                                <p className="text-sm text-slate-400">
+                                  No audio items yet. Click &quot;Add
+                                  Audio&quot; or drag from Library.
+                                </p>
                               </div>
                             )}
 
                             <div className="space-y-3">
                               {module.content.audioItems?.map((item, index) => (
-                                <div key={item.id} className="bg-white p-4 rounded-lg border-2 border-green-200">
+                                <div
+                                  key={item.id}
+                                  className="bg-white p-4 rounded-lg border-2 border-green-200"
+                                >
                                   <div className="flex items-start justify-between mb-3">
-                                    <span className="text-xs font-semibold text-green-700">Audio {index + 1}</span>
+                                    <span className="text-xs font-semibold text-green-700">
+                                      Audio {index + 1}
+                                    </span>
                                     <button
-                                      onClick={() => removeAudioItem(module.id, item.id)}
+                                      onClick={() =>
+                                        removeAudioItem(module.id, item.id)
+                                      }
                                       className="text-red-500 hover:text-red-700 transition-colors"
                                     >
-                                      <span className="material-symbols-outlined text-sm">delete</span>
+                                      <span className="material-symbols-outlined text-sm">
+                                        delete
+                                      </span>
                                     </button>
                                   </div>
 
                                   <input
                                     type="text"
                                     value={item.title}
-                                    onChange={(e) => updateAudioItemTitle(module.id, item.id, e.target.value)}
+                                    onChange={(e) =>
+                                      updateAudioItemTitle(
+                                        module.id,
+                                        item.id,
+                                        e.target.value,
+                                      )
+                                    }
                                     className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                                     placeholder="Title (e.g., Cześć, Dzień dobry)"
                                   />
@@ -2734,8 +3929,12 @@ export default function LessonEditorPage() {
                                   {item.audioUrl ? (
                                     <div className="space-y-2">
                                       <div className="flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-green-600 text-sm">check_circle</span>
-                                        <span className="text-xs text-slate-600">{item.audioName}</span>
+                                        <span className="material-symbols-outlined text-green-600 text-sm">
+                                          check_circle
+                                        </span>
+                                        <span className="text-xs text-slate-600">
+                                          {item.audioName}
+                                        </span>
                                       </div>
                                       <audio controls className="w-full h-8">
                                         <source src={item.audioUrl} />
@@ -2746,7 +3945,12 @@ export default function LessonEditorPage() {
                                           accept="audio/*"
                                           onChange={(e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) handleAudioItemUpload(module.id, item.id, file);
+                                            if (file)
+                                              handleAudioItemUpload(
+                                                module.id,
+                                                item.id,
+                                                file,
+                                              );
                                           }}
                                           className="hidden"
                                         />
@@ -2761,28 +3965,55 @@ export default function LessonEditorPage() {
                                       onDragOver={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        e.currentTarget.classList.add("border-green-500", "bg-green-100");
+                                        e.currentTarget.classList.add(
+                                          "border-green-500",
+                                          "bg-green-100",
+                                        );
                                       }}
                                       onDragLeave={(e) => {
-                                        e.currentTarget.classList.remove("border-green-500", "bg-green-100");
+                                        e.currentTarget.classList.remove(
+                                          "border-green-500",
+                                          "bg-green-100",
+                                        );
                                       }}
                                       onDrop={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        e.currentTarget.classList.remove("border-green-500", "bg-green-100");
-                                        const fileData = e.dataTransfer.getData("library-file");
+                                        e.currentTarget.classList.remove(
+                                          "border-green-500",
+                                          "bg-green-100",
+                                        );
+                                        const fileData =
+                                          e.dataTransfer.getData(
+                                            "library-file",
+                                          );
                                         if (fileData) {
                                           try {
                                             const file = JSON.parse(fileData);
-                                            if (file.type === "audio" && module.content.audioItems) {
+                                            if (
+                                              file.type === "audio" &&
+                                              module.content.audioItems
+                                            ) {
                                               updateModuleContent(module.id, {
-                                                audioItems: module.content.audioItems.map((audioItem: any) =>
-                                                  audioItem.id === item.id ? { ...audioItem, audioUrl: file.url, audioName: file.name } : audioItem
-                                                )
+                                                audioItems:
+                                                  module.content.audioItems.map(
+                                                    (audioItem: any) =>
+                                                      audioItem.id === item.id
+                                                        ? {
+                                                            ...audioItem,
+                                                            audioUrl: file.url,
+                                                            audioName:
+                                                              file.name,
+                                                          }
+                                                        : audioItem,
+                                                  ),
                                               });
                                             }
                                           } catch (err) {
-                                            console.error("Failed to parse dropped file:", err);
+                                            console.error(
+                                              "Failed to parse dropped file:",
+                                              err,
+                                            );
                                           }
                                         }
                                       }}
@@ -2793,12 +4024,21 @@ export default function LessonEditorPage() {
                                           accept="audio/*"
                                           onChange={(e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) handleAudioItemUpload(module.id, item.id, file);
+                                            if (file)
+                                              handleAudioItemUpload(
+                                                module.id,
+                                                item.id,
+                                                file,
+                                              );
                                           }}
                                           className="hidden"
                                         />
-                                        <span className="material-symbols-outlined text-2xl text-green-400 mb-1">volume_up</span>
-                                        <p className="text-xs text-slate-500">Upload or drag audio</p>
+                                        <span className="material-symbols-outlined text-2xl text-green-400 mb-1">
+                                          volume_up
+                                        </span>
+                                        <p className="text-xs text-slate-500">
+                                          Upload or drag audio
+                                        </p>
                                       </label>
                                     </div>
                                   )}
@@ -2812,32 +4052,47 @@ export default function LessonEditorPage() {
                         {module.type === "image" && (
                           <div className="space-y-4">
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm text-slate-600 font-medium">Image Items</p>
+                              <p className="text-sm text-slate-600 font-medium">
+                                Image Items
+                              </p>
                               <button
                                 onClick={() => addImageItem(module.id)}
                                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-sm">add</span>
+                                <span className="material-symbols-outlined text-sm">
+                                  add
+                                </span>
                                 Add Image
                               </button>
                             </div>
 
-                            {(!module.content.imageItems || module.content.imageItems.length === 0) && (
+                            {(!module.content.imageItems ||
+                              module.content.imageItems.length === 0) && (
                               <div
                                 className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-slate-200 transition-colors hover:border-blue-300 hover:bg-blue-50/30"
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.currentTarget.classList.add("border-blue-500", "bg-blue-50");
+                                  e.currentTarget.classList.add(
+                                    "border-blue-500",
+                                    "bg-blue-50",
+                                  );
                                 }}
                                 onDragLeave={(e) => {
-                                  e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
+                                  e.currentTarget.classList.remove(
+                                    "border-blue-500",
+                                    "bg-blue-50",
+                                  );
                                 }}
                                 onDrop={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.currentTarget.classList.remove("border-blue-500", "bg-blue-50");
-                                  const fileData = e.dataTransfer.getData("library-file");
+                                  e.currentTarget.classList.remove(
+                                    "border-blue-500",
+                                    "bg-blue-50",
+                                  );
+                                  const fileData =
+                                    e.dataTransfer.getData("library-file");
                                   if (fileData) {
                                     try {
                                       const file = JSON.parse(fileData);
@@ -2845,42 +4100,73 @@ export default function LessonEditorPage() {
                                         addImageItem(module.id);
                                         // Use setTimeout to ensure the image item is added first
                                         setTimeout(() => {
-                                          const imageItems = modules.find(m => m.id === module.id)?.content.imageItems;
-                                          if (imageItems && imageItems.length > 0) {
-                                            const lastItem = imageItems[imageItems.length - 1];
+                                          const imageItems = modules.find(
+                                            (m) => m.id === module.id,
+                                          )?.content.imageItems;
+                                          if (
+                                            imageItems &&
+                                            imageItems.length > 0
+                                          ) {
+                                            const lastItem =
+                                              imageItems[imageItems.length - 1];
                                             updateModuleContent(module.id, {
-                                              imageItems: imageItems.map((item: any) =>
-                                                item.id === lastItem.id ? { ...item, imageUrl: file.url } : item
-                                              )
+                                              imageItems: imageItems.map(
+                                                (item: any) =>
+                                                  item.id === lastItem.id
+                                                    ? {
+                                                        ...item,
+                                                        imageUrl: file.url,
+                                                      }
+                                                    : item,
+                                              ),
                                             });
                                           }
                                         }, 50);
                                       }
                                     } catch (err) {
-                                      console.error("Failed to parse dropped file:", err);
+                                      console.error(
+                                        "Failed to parse dropped file:",
+                                        err,
+                                      );
                                     }
                                   }
                                 }}
                               >
-                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">image</span>
-                                <p className="text-sm text-slate-400">No images yet. Click "Add Image" or drag from Library.</p>
+                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">
+                                  image
+                                </span>
+                                <p className="text-sm text-slate-400">
+                                  No images yet. Click "Add Image" or drag from
+                                  Library.
+                                </p>
                               </div>
                             )}
 
-                            <div className={`grid gap-3 ${
-                              module.content.imageItems?.length === 1
-                                ? "grid-cols-1 max-w-lg mx-auto"
-                                : "grid-cols-1 md:grid-cols-2"
-                            }`}>
+                            <div
+                              className={`grid gap-3 ${
+                                module.content.imageItems?.length === 1
+                                  ? "grid-cols-1 max-w-lg mx-auto"
+                                  : "grid-cols-1 md:grid-cols-2"
+                              }`}
+                            >
                               {module.content.imageItems?.map((item, index) => (
-                                <div key={item.id} className="bg-white p-4 rounded-lg border-2 border-blue-200">
+                                <div
+                                  key={item.id}
+                                  className="bg-white p-4 rounded-lg border-2 border-blue-200"
+                                >
                                   <div className="flex items-start justify-between mb-3">
-                                    <span className="text-xs font-semibold text-blue-700">Image {index + 1}</span>
+                                    <span className="text-xs font-semibold text-blue-700">
+                                      Image {index + 1}
+                                    </span>
                                     <button
-                                      onClick={() => removeImageItem(module.id, item.id)}
+                                      onClick={() =>
+                                        removeImageItem(module.id, item.id)
+                                      }
                                       className="text-red-500 hover:text-red-700 transition-colors"
                                     >
-                                      <span className="material-symbols-outlined text-sm">delete</span>
+                                      <span className="material-symbols-outlined text-sm">
+                                        delete
+                                      </span>
                                     </button>
                                   </div>
 
@@ -2891,44 +4177,81 @@ export default function LessonEditorPage() {
                                         onDragOver={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
-                                          e.currentTarget.classList.add("ring-2", "ring-blue-500");
+                                          e.currentTarget.classList.add(
+                                            "ring-2",
+                                            "ring-blue-500",
+                                          );
                                         }}
                                         onDragLeave={(e) => {
-                                          e.currentTarget.classList.remove("ring-2", "ring-blue-500");
+                                          e.currentTarget.classList.remove(
+                                            "ring-2",
+                                            "ring-blue-500",
+                                          );
                                         }}
                                         onDrop={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
-                                          e.currentTarget.classList.remove("ring-2", "ring-blue-500");
-                                          const fileData = e.dataTransfer.getData("library-file");
+                                          e.currentTarget.classList.remove(
+                                            "ring-2",
+                                            "ring-blue-500",
+                                          );
+                                          const fileData =
+                                            e.dataTransfer.getData(
+                                              "library-file",
+                                            );
                                           if (fileData) {
                                             try {
                                               const file = JSON.parse(fileData);
-                                              if (file.type === "image" && module.content.imageItems) {
+                                              if (
+                                                file.type === "image" &&
+                                                module.content.imageItems
+                                              ) {
                                                 updateModuleContent(module.id, {
-                                                  imageItems: module.content.imageItems.map((imgItem: any) =>
-                                                    imgItem.id === item.id ? { ...imgItem, imageUrl: file.url } : imgItem
-                                                  )
+                                                  imageItems:
+                                                    module.content.imageItems.map(
+                                                      (imgItem: any) =>
+                                                        imgItem.id === item.id
+                                                          ? {
+                                                              ...imgItem,
+                                                              imageUrl:
+                                                                file.url,
+                                                            }
+                                                          : imgItem,
+                                                    ),
                                                 });
                                               }
                                             } catch (err) {
-                                              console.error("Failed to parse dropped file:", err);
+                                              console.error(
+                                                "Failed to parse dropped file:",
+                                                err,
+                                              );
                                             }
                                           }
                                         }}
                                       >
-                                        <img src={item.imageUrl} alt={item.caption || "Image"} className="w-full rounded-lg" />
+                                        <img
+                                          src={item.imageUrl}
+                                          alt={item.caption || "Image"}
+                                          className="w-full rounded-lg"
+                                        />
                                         <label className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded-lg">
                                           <input
                                             type="file"
                                             accept="image/*"
                                             onChange={(e) => {
                                               const file = e.target.files?.[0];
-                                              if (file) handleImageItemUpload(module.id, item.id, file);
+                                              if (file)
+                                                handleImageItemUpload(
+                                                  module.id,
+                                                  item.id,
+                                                  file,
+                                                );
                                             }}
                                             className="hidden"
                                           />
-                                          <span className="text-white text-xs font-medium">Change Image</span>
+                                          <span className="text-white text-xs font-medium">
+                                            Change Image
+                                          </span>
                                         </label>
                                       </div>
                                     </div>
@@ -2938,28 +4261,53 @@ export default function LessonEditorPage() {
                                       onDragOver={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        e.currentTarget.classList.add("border-blue-500", "bg-blue-100");
+                                        e.currentTarget.classList.add(
+                                          "border-blue-500",
+                                          "bg-blue-100",
+                                        );
                                       }}
                                       onDragLeave={(e) => {
-                                        e.currentTarget.classList.remove("border-blue-500", "bg-blue-100");
+                                        e.currentTarget.classList.remove(
+                                          "border-blue-500",
+                                          "bg-blue-100",
+                                        );
                                       }}
                                       onDrop={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        e.currentTarget.classList.remove("border-blue-500", "bg-blue-100");
-                                        const fileData = e.dataTransfer.getData("library-file");
+                                        e.currentTarget.classList.remove(
+                                          "border-blue-500",
+                                          "bg-blue-100",
+                                        );
+                                        const fileData =
+                                          e.dataTransfer.getData(
+                                            "library-file",
+                                          );
                                         if (fileData) {
                                           try {
                                             const file = JSON.parse(fileData);
-                                            if (file.type === "image" && module.content.imageItems) {
+                                            if (
+                                              file.type === "image" &&
+                                              module.content.imageItems
+                                            ) {
                                               updateModuleContent(module.id, {
-                                                imageItems: module.content.imageItems.map((imgItem: any) =>
-                                                  imgItem.id === item.id ? { ...imgItem, imageUrl: file.url } : imgItem
-                                                )
+                                                imageItems:
+                                                  module.content.imageItems.map(
+                                                    (imgItem: any) =>
+                                                      imgItem.id === item.id
+                                                        ? {
+                                                            ...imgItem,
+                                                            imageUrl: file.url,
+                                                          }
+                                                        : imgItem,
+                                                  ),
                                               });
                                             }
                                           } catch (err) {
-                                            console.error("Failed to parse dropped file:", err);
+                                            console.error(
+                                              "Failed to parse dropped file:",
+                                              err,
+                                            );
                                           }
                                         }
                                       }}
@@ -2970,12 +4318,21 @@ export default function LessonEditorPage() {
                                           accept="image/*"
                                           onChange={(e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) handleImageItemUpload(module.id, item.id, file);
+                                            if (file)
+                                              handleImageItemUpload(
+                                                module.id,
+                                                item.id,
+                                                file,
+                                              );
                                           }}
                                           className="hidden"
                                         />
-                                        <span className="material-symbols-outlined text-2xl text-blue-400 mb-1">image</span>
-                                        <p className="text-xs text-slate-500">Upload or drag from Library</p>
+                                        <span className="material-symbols-outlined text-2xl text-blue-400 mb-1">
+                                          image
+                                        </span>
+                                        <p className="text-xs text-slate-500">
+                                          Upload or drag from Library
+                                        </p>
                                       </label>
                                     </div>
                                   )}
@@ -2983,32 +4340,51 @@ export default function LessonEditorPage() {
                                   <input
                                     type="text"
                                     value={item.caption}
-                                    onChange={(e) => updateImageItemCaption(module.id, item.id, e.target.value)}
+                                    onChange={(e) =>
+                                      updateImageItemCaption(
+                                        module.id,
+                                        item.id,
+                                        e.target.value,
+                                      )
+                                    }
                                     className="w-full bg-slate-50 rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     placeholder="Caption (e.g., Kot, Pies)"
                                   />
 
                                   {/* Orientation Selection */}
                                   <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-xs text-slate-500">Orientation:</span>
+                                    <span className="text-xs text-slate-500">
+                                      Orientation:
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={() => {
                                         if (module.content.imageItems) {
                                           updateModuleContent(module.id, {
-                                            imageItems: module.content.imageItems.map((imgItem: ImageItem) =>
-                                              imgItem.id === item.id ? { ...imgItem, orientation: "landscape" } : imgItem
-                                            )
+                                            imageItems:
+                                              module.content.imageItems.map(
+                                                (imgItem: ImageItem) =>
+                                                  imgItem.id === item.id
+                                                    ? {
+                                                        ...imgItem,
+                                                        orientation:
+                                                          "landscape",
+                                                      }
+                                                    : imgItem,
+                                              ),
                                           });
                                         }
                                       }}
                                       className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
-                                        (item.orientation || "landscape") === "landscape"
+                                        (item.orientation || "landscape") ===
+                                        "landscape"
                                           ? "bg-blue-600 text-white"
                                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                       }`}
                                     >
-                                      <span className="material-symbols-outlined text-[14px]">crop_landscape</span>
+                                      <span className="material-symbols-outlined text-[14px]">
+                                        crop_landscape
+                                      </span>
                                       Landscape
                                     </button>
                                     <button
@@ -3016,9 +4392,16 @@ export default function LessonEditorPage() {
                                       onClick={() => {
                                         if (module.content.imageItems) {
                                           updateModuleContent(module.id, {
-                                            imageItems: module.content.imageItems.map((imgItem: ImageItem) =>
-                                              imgItem.id === item.id ? { ...imgItem, orientation: "portrait" } : imgItem
-                                            )
+                                            imageItems:
+                                              module.content.imageItems.map(
+                                                (imgItem: ImageItem) =>
+                                                  imgItem.id === item.id
+                                                    ? {
+                                                        ...imgItem,
+                                                        orientation: "portrait",
+                                                      }
+                                                    : imgItem,
+                                              ),
                                           });
                                         }
                                       }}
@@ -3028,7 +4411,9 @@ export default function LessonEditorPage() {
                                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                       }`}
                                     >
-                                      <span className="material-symbols-outlined text-[14px]">crop_portrait</span>
+                                      <span className="material-symbols-outlined text-[14px]">
+                                        crop_portrait
+                                      </span>
                                       Portrait
                                     </button>
                                   </div>
@@ -3045,27 +4430,41 @@ export default function LessonEditorPage() {
                               <div className="bg-white p-4 rounded border-2 border-red-300">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-red-600">picture_as_pdf</span>
-                                    <span className="text-sm font-medium">{module.content.pdfName}</span>
+                                    <span className="material-symbols-outlined text-red-600">
+                                      picture_as_pdf
+                                    </span>
+                                    <span className="text-sm font-medium">
+                                      {module.content.pdfName}
+                                    </span>
                                   </div>
                                   <button
                                     onClick={async () => {
                                       // Delete from storage first
                                       if (module.content.pdfUrl) {
                                         try {
-                                          const filePath = getFilePathFromUrl(module.content.pdfUrl);
+                                          const filePath = getFilePathFromUrl(
+                                            module.content.pdfUrl,
+                                          );
                                           if (filePath) {
                                             await deleteFile(filePath);
                                           }
                                         } catch (error) {
-                                          console.error('Failed to delete PDF from storage:', error);
+                                          console.error(
+                                            "Failed to delete PDF from storage:",
+                                            error,
+                                          );
                                         }
                                       }
-                                      updateModuleContent(module.id, { pdfUrl: undefined, pdfName: undefined });
+                                      updateModuleContent(module.id, {
+                                        pdfUrl: undefined,
+                                        pdfName: undefined,
+                                      });
                                     }}
                                     className="text-red-500 hover:text-red-700"
                                   >
-                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                    <span className="material-symbols-outlined text-sm">
+                                      delete
+                                    </span>
                                   </button>
                                 </div>
                               </div>
@@ -3075,27 +4474,40 @@ export default function LessonEditorPage() {
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.currentTarget.classList.add("border-red-500", "bg-red-50");
+                                  e.currentTarget.classList.add(
+                                    "border-red-500",
+                                    "bg-red-50",
+                                  );
                                 }}
                                 onDragLeave={(e) => {
-                                  e.currentTarget.classList.remove("border-red-500", "bg-red-50");
+                                  e.currentTarget.classList.remove(
+                                    "border-red-500",
+                                    "bg-red-50",
+                                  );
                                 }}
                                 onDrop={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.currentTarget.classList.remove("border-red-500", "bg-red-50");
-                                  const fileData = e.dataTransfer.getData("library-file");
+                                  e.currentTarget.classList.remove(
+                                    "border-red-500",
+                                    "bg-red-50",
+                                  );
+                                  const fileData =
+                                    e.dataTransfer.getData("library-file");
                                   if (fileData) {
                                     try {
                                       const file = JSON.parse(fileData);
                                       if (file.type === "pdf") {
                                         updateModuleContent(module.id, {
                                           pdfUrl: file.url,
-                                          pdfName: file.name
+                                          pdfName: file.name,
                                         });
                                       }
                                     } catch (err) {
-                                      console.error("Failed to parse dropped file:", err);
+                                      console.error(
+                                        "Failed to parse dropped file:",
+                                        err,
+                                      );
                                     }
                                   }
                                 }}
@@ -3106,14 +4518,21 @@ export default function LessonEditorPage() {
                                     accept="application/pdf"
                                     onChange={(e) => {
                                       const file = e.target.files?.[0];
-                                      if (file) handleFileUpload(module.id, "pdf", file);
+                                      if (file)
+                                        handleFileUpload(
+                                          module.id,
+                                          "pdf",
+                                          file,
+                                        );
                                     }}
                                     className="hidden"
                                   />
                                   <span className="material-symbols-outlined text-3xl text-red-400 mb-2">
                                     picture_as_pdf
                                   </span>
-                                  <p className="text-sm text-slate-500">Click to upload or drag PDF from Library</p>
+                                  <p className="text-sm text-slate-500">
+                                    Click to upload or drag PDF from Library
+                                  </p>
                                 </label>
                               </div>
                             )}
@@ -3124,18 +4543,29 @@ export default function LessonEditorPage() {
                         {module.type === "wordwall" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Wordwall Iframe Code:</label>
+                              <label className="text-sm font-medium text-slate-700">
+                                Wordwall Iframe Code:
+                              </label>
                               <textarea
                                 value={module.content.wordwallIframe || ""}
-                                onChange={(e) => updateModuleContent(module.id, { wordwallIframe: e.target.value })}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    wordwallIframe: e.target.value,
+                                  })
+                                }
                                 className="w-full min-h-[80px] bg-white rounded border border-slate-200 px-3 py-2 text-xs font-mono resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 placeholder='<iframe style="max-width:100%" src="https://wordwall.net/embed/..." width="500" height="380" frameborder="0"></iframe>'
                               />
-                              <p className="text-xs text-slate-500">Wordwall sayfasından &quot;Share&quot; → &quot;Embed&quot; seçip iframe kodunu buraya yapıştırın</p>
+                              <p className="text-xs text-slate-500">
+                                From Wordwall, click &quot;Share&quot; →
+                                &quot;Embed&quot; and paste the iframe code here
+                              </p>
                             </div>
                             {module.content.wordwallIframe && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <p className="text-xs text-green-700 font-medium">✓ Wordwall activity configured</p>
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Wordwall activity configured
+                                </p>
                               </div>
                             )}
                           </div>
@@ -3145,19 +4575,29 @@ export default function LessonEditorPage() {
                         {module.type === "baamboozle" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Baamboozle Link:</label>
+                              <label className="text-sm font-medium text-slate-700">
+                                Baamboozle Link:
+                              </label>
                               <input
                                 type="text"
                                 value={module.content.baamboozleUrl || ""}
-                                onChange={(e) => updateModuleContent(module.id, { baamboozleUrl: e.target.value })}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    baamboozleUrl: e.target.value,
+                                  })
+                                }
                                 className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 placeholder="https://www.baamboozle.com/slideshow/2420286"
                               />
-                              <p className="text-xs text-slate-500">Paste game or slideshow link from Baamboozle</p>
+                              <p className="text-xs text-slate-500">
+                                Paste game or slideshow link from Baamboozle
+                              </p>
                             </div>
                             {module.content.baamboozleUrl && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <p className="text-xs text-green-700 font-medium">✓ Baamboozle activity configured</p>
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Baamboozle activity configured
+                                </p>
                               </div>
                             )}
                           </div>
@@ -3167,18 +4607,29 @@ export default function LessonEditorPage() {
                         {module.type === "quizlet" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Quizlet Iframe Code:</label>
+                              <label className="text-sm font-medium text-slate-700">
+                                Quizlet Iframe Code:
+                              </label>
                               <textarea
                                 value={module.content.quizletIframe || ""}
-                                onChange={(e) => updateModuleContent(module.id, { quizletIframe: e.target.value })}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    quizletIframe: e.target.value,
+                                  })
+                                }
                                 className="w-full min-h-[80px] bg-white rounded border border-slate-200 px-3 py-2 text-xs font-mono resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 placeholder='<iframe src="https://quizlet.com/123456789/flashcards/embed?i=..." height="500" width="100%" style="border:0"></iframe>'
                               />
-                              <p className="text-xs text-slate-500">Quizlet sayfasından &quot;Share&quot; → &quot;Embed&quot; seçip iframe kodunu buraya yapıştırın</p>
+                              <p className="text-xs text-slate-500">
+                                From Quizlet, click &quot;Share&quot; →
+                                &quot;Embed&quot; and paste the iframe code here
+                              </p>
                             </div>
                             {module.content.quizletIframe && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <p className="text-xs text-green-700 font-medium">✓ Quizlet set configured</p>
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Quizlet set configured
+                                </p>
                               </div>
                             )}
                           </div>
@@ -3188,19 +4639,29 @@ export default function LessonEditorPage() {
                         {module.type === "genially" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Genially Link:</label>
+                              <label className="text-sm font-medium text-slate-700">
+                                Genially Link:
+                              </label>
                               <input
                                 type="text"
                                 value={module.content.geniallyUrl || ""}
-                                onChange={(e) => updateModuleContent(module.id, { geniallyUrl: e.target.value })}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    geniallyUrl: e.target.value,
+                                  })
+                                }
                                 className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 placeholder="https://view.genial.ly/..."
                               />
-                              <p className="text-xs text-slate-500">Paste the Genially view link</p>
+                              <p className="text-xs text-slate-500">
+                                Paste the Genially view link
+                              </p>
                             </div>
                             {module.content.geniallyUrl && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <p className="text-xs text-green-700 font-medium">✓ Genially presentation configured</p>
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Genially presentation configured
+                                </p>
                               </div>
                             )}
                           </div>
@@ -3210,19 +4671,87 @@ export default function LessonEditorPage() {
                         {module.type === "miro" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700">Miro Board Link:</label>
+                              <label className="text-sm font-medium text-slate-700">
+                                Miro Board Link:
+                              </label>
                               <input
                                 type="text"
                                 value={module.content.miroUrl || ""}
-                                onChange={(e) => updateModuleContent(module.id, { miroUrl: e.target.value })}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    miroUrl: e.target.value,
+                                  })
+                                }
                                 className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                 placeholder="https://miro.com/app/board/..."
                               />
-                              <p className="text-xs text-slate-500">Paste the Miro board link</p>
+                              <p className="text-xs text-slate-500">
+                                Paste the Miro board link
+                              </p>
                             </div>
                             {module.content.miroUrl && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <p className="text-xs text-green-700 font-medium">✓ Miro board configured</p>
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Miro board configured
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* YOUTUBE MODULE */}
+                        {module.type === "youtube" && (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">
+                                YouTube Video Link:
+                              </label>
+                              <input
+                                type="text"
+                                value={module.content.youtubeUrl || ""}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    youtubeUrl: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                              />
+                              <p className="text-xs text-slate-500">
+                                Paste the YouTube video link
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">
+                                Video Title (optional):
+                              </label>
+                              <input
+                                type="text"
+                                value={module.content.youtubeTitle || ""}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    youtubeTitle: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="Video title..."
+                              />
+                            </div>
+                            {module.content.youtubeUrl && (
+                              <div className="mt-4">
+                                <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                                  <iframe
+                                    src={`https://www.youtube.com/embed/${module.content.youtubeUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1] || ''}`}
+                                    className="w-full h-full"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                </div>
+                                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                  <p className="text-xs text-green-700 font-medium">
+                                    ✓ YouTube video configured
+                                  </p>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -3243,29 +4772,42 @@ export default function LessonEditorPage() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="size-12 rounded-full bg-red-100 flex items-center justify-center">
-                <span className="material-symbols-outlined text-red-600 text-2xl">warning</span>
+                <span className="material-symbols-outlined text-red-600 text-2xl">
+                  warning
+                </span>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Delete Lesson?</h3>
-                <p className="text-sm text-slate-500">This action cannot be undone</p>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Delete Lesson?
+                </h3>
+                <p className="text-sm text-slate-500">
+                  This action cannot be undone
+                </p>
               </div>
             </div>
 
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-800">
-                <strong className="font-semibold">Warning:</strong> This will permanently delete:
+                <strong className="font-semibold">Warning:</strong> This will
+                permanently delete:
               </p>
               <ul className="mt-2 space-y-1 text-sm text-red-700">
                 <li className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-xs">check_circle</span>
+                  <span className="material-symbols-outlined text-xs">
+                    check_circle
+                  </span>
                   The lesson "{lessonTitle}"
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-xs">check_circle</span>
-                  All {modules.length} module{modules.length !== 1 ? 's' : ''}
+                  <span className="material-symbols-outlined text-xs">
+                    check_circle
+                  </span>
+                  All {modules.length} module{modules.length !== 1 ? "s" : ""}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-xs">check_circle</span>
+                  <span className="material-symbols-outlined text-xs">
+                    check_circle
+                  </span>
                   All associated files (images, PDFs, audio)
                 </li>
               </ul>

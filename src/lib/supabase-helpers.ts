@@ -446,7 +446,7 @@ export async function deleteLessonHistoryByLessonId(lessonId: string) {
 
 export interface CurriculumTopic {
   id: string;
-  level: 'a1' | 'a2' | 'b1' | 'b2' | 'c1';
+  level: 'a1' | 'a2' | 'b1' | 'b2' | 'c1' | 'c2';
   category: string;
   title: string;
   description: string;
@@ -541,7 +541,7 @@ export async function deleteCurriculumTopic(id: string) {
 
 export interface LessonContent {
   id: string;
-  level: 'a1' | 'a2' | 'b1' | 'b2' | 'c1';
+  level: 'a1' | 'a2' | 'b1' | 'b2' | 'c1' | 'c2';
   title: string;
   status: 'draft' | 'published';
   curriculum_topic_id?: string;
@@ -632,6 +632,49 @@ export async function updateLessonContent(id: string, updates: Partial<LessonCon
   return data;
 }
 
+// Helper function to extract storage paths from R2 URLs
+function extractStoragePathsFromModules(modules: any[]): string[] {
+  const storagePaths: string[] = [];
+  const r2PublicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || 'https://files.nastyknowledge.online';
+
+  for (const module of modules) {
+    if (!module.content) continue;
+
+    // Check various content fields that might contain file URLs
+    const urlFields = ['imageUrl', 'pdfUrl', 'audioUrl', 'videoUrl', 'url'];
+
+    for (const field of urlFields) {
+      const url = module.content[field];
+      if (url && typeof url === 'string' && url.includes('files.nastyknowledge.online')) {
+        // Extract storage path from URL: https://files.nastyknowledge.online/uploads/xxx -> uploads/xxx
+        const storagePath = url.replace(`${r2PublicUrl}/`, '');
+        if (storagePath && storagePath !== url) {
+          storagePaths.push(storagePath);
+        }
+      }
+    }
+
+    // Check for audio items array
+    if (module.content.audioItems && Array.isArray(module.content.audioItems)) {
+      for (const item of module.content.audioItems) {
+        if (item.audioUrl && item.audioUrl.includes('files.nastyknowledge.online')) {
+          const storagePath = item.audioUrl.replace(`${r2PublicUrl}/`, '');
+          if (storagePath && storagePath !== item.audioUrl) {
+            storagePaths.push(storagePath);
+          }
+        }
+      }
+    }
+
+    // Check storagePath field directly
+    if (module.content.storagePath) {
+      storagePaths.push(module.content.storagePath);
+    }
+  }
+
+  return storagePaths;
+}
+
 // Delete lesson content (also deletes all associated files from storage)
 export async function deleteLessonContent(id: string, level: string) {
   try {
@@ -642,32 +685,27 @@ export async function deleteLessonContent(id: string, level: string) {
       .eq('id', id)
       .single();
 
-    // Delete all files in the lesson's folder from storage
-    if (lessonData) {
-      const folderPath = `lessons/${level}/${id}`;
-
+    // Delete all files from R2 storage
+    if (lessonData && lessonData.modules) {
       try {
-        // List all files in the lesson's folder
-        const { data: fileList, error: listError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .list(folderPath);
+        const storagePaths = extractStoragePathsFromModules(lessonData.modules);
 
-        if (!listError && fileList && fileList.length > 0) {
-          // Build full paths for all files in the folder
-          const filePaths = fileList.map(file => `${folderPath}/${file.name}`);
-
-          const { error: removeError } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .remove(filePaths);
-
-          if (removeError) {
-            console.error('Error removing files:', removeError);
-          } else {
-            console.log(`Deleted ${filePaths.length} files from storage for lesson ${id}`);
+        // Delete each file from R2
+        for (const storagePath of storagePaths) {
+          try {
+            await deleteFile(storagePath);
+            console.log(`Deleted file from R2: ${storagePath}`);
+          } catch (err) {
+            console.error(`Error deleting file ${storagePath} from R2:`, err);
+            // Continue with other files even if one fails
           }
         }
+
+        if (storagePaths.length > 0) {
+          console.log(`Deleted ${storagePaths.length} files from R2 storage for lesson ${id}`);
+        }
       } catch (storageError) {
-        console.error('Error deleting lesson files from storage:', storageError);
+        console.error('Error deleting lesson files from R2:', storageError);
         // Continue with database deletion even if storage deletion fails
       }
     }
@@ -738,37 +776,28 @@ function sanitizeFileName(fileName: string): string {
   return sanitized + extension.toLowerCase();
 }
 
-// Upload file to Supabase Storage
-export async function uploadFile(file: File, path?: string): Promise<{ url: string; name: string; storagePath: string }> {
+// Upload file to Cloudflare R2
+export async function uploadFile(file: File, folder?: string): Promise<{ url: string; name: string; storagePath: string }> {
   try {
-    // Generate unique filename with timestamp and sanitized name
-    const timestamp = Date.now();
-    const sanitizedName = sanitizeFileName(file.name);
-    const fileName = `${timestamp}-${sanitizedName}`;
-    const filePath = path ? `${path}/${fileName}` : fileName;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folder || "uploads");
 
-    // Upload file
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
 
-    if (error) {
-      console.error('Error uploading file:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error("Upload failed");
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(filePath);
+    const data = await response.json();
 
     return {
-      url: publicUrl,
+      url: data.url,
       name: file.name,
-      storagePath: filePath
+      storagePath: data.storagePath,
     };
   } catch (error) {
     console.error('Upload failed:', error);
@@ -776,16 +805,17 @@ export async function uploadFile(file: File, path?: string): Promise<{ url: stri
   }
 }
 
-// Delete file from Supabase Storage
-export async function deleteFile(filePath: string) {
+// Delete file from Cloudflare R2
+export async function deleteFile(storagePath: string) {
   try {
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .remove([filePath]);
+    const response = await fetch("/api/upload", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storagePath }),
+    });
 
-    if (error) {
-      console.error('Error deleting file:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error("Delete failed");
     }
 
     return true;
@@ -795,10 +825,19 @@ export async function deleteFile(filePath: string) {
   }
 }
 
-// Extract file path from Supabase Storage URL
+// Extract file path from Storage URL (supports both Supabase and R2)
 export function getFilePathFromUrl(url: string): string | null {
   try {
     const urlObj = new URL(url);
+
+    // Check if it's an R2 URL (files.nastyknowledge.online)
+    if (urlObj.hostname === 'files.nastyknowledge.online') {
+      // R2 URL: https://files.nastyknowledge.online/lessons/a1/xxx/file.mp3
+      // Return path without leading slash
+      return urlObj.pathname.slice(1) || null;
+    }
+
+    // Supabase URL: extract path after bucket name
     const pathParts = urlObj.pathname.split(`/${STORAGE_BUCKET}/`);
     return pathParts[1] || null;
   } catch {

@@ -359,7 +359,7 @@ export default function PresentationPage() {
       <div className="hidden lg:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
         {/* Back Button */}
         <Link
-          href={`/lessons/${params.level}`}
+          href="/presentation"
           className="mx-auto mb-6 size-9 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
@@ -400,7 +400,7 @@ export default function PresentationPage() {
         <div className="lg:hidden flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
-              href={`/lessons/${params.level}`}
+              href="/presentation"
               className="inline-flex items-center gap-1 text-sm font-medium text-blue-600"
             >
               <span className="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -1017,27 +1017,48 @@ export default function PresentationPage() {
                     {module.type === "audio" && (
                       <div className="py-4">
                         {module.content.audioItems && module.content.audioItems.length > 0 ? (
-                          <div className={`grid gap-6 ${
-                            module.content.audioItems.length === 1
-                              ? "grid-cols-1 max-w-xs"
-                              : module.content.audioItems.length === 2
-                              ? "grid-cols-2 max-w-md"
-                              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
-                          }`}>
-                            {module.content.audioItems.map((item: AudioItem) => (
-                              <div key={item.id} className="flex flex-col items-center">
-                                <button
-                                  onClick={() => playAudio(item.audioUrl)}
-                                  className="size-20 rounded-full bg-blue-500 hover:bg-blue-600 active:scale-95 flex items-center justify-center mb-3 transition-all shadow-md"
-                                >
-                                  <span className="material-symbols-outlined text-white text-4xl">volume_up</span>
-                                </button>
-                                {item.title && (
-                                  <p className="text-sm font-medium text-slate-700 text-center">{item.title}</p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          module.content.audioPlayMode === "click" ? (
+                            /* Click to Play Mode - Button style */
+                            <div className={`grid gap-6 ${
+                              module.content.audioItems.length === 1
+                                ? "grid-cols-1 max-w-xs"
+                                : module.content.audioItems.length === 2
+                                ? "grid-cols-2 max-w-md"
+                                : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+                            }`}>
+                              {module.content.audioItems.map((item: AudioItem) => (
+                                <div key={item.id} className="flex flex-col items-center">
+                                  <button
+                                    onClick={() => playAudio(item.audioUrl)}
+                                    className="size-20 rounded-full bg-blue-500 hover:bg-blue-600 active:scale-95 flex items-center justify-center mb-3 transition-all shadow-md"
+                                  >
+                                    <span className="material-symbols-outlined text-white text-4xl">volume_up</span>
+                                  </button>
+                                  {item.title && (
+                                    <p className="text-sm font-medium text-slate-700 text-center">{item.title}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            /* Controls Mode - Full audio player */
+                            <div className="space-y-4 max-w-2xl">
+                              {module.content.audioItems.map((item: AudioItem) => (
+                                <div key={item.id} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                                  {item.title && (
+                                    <p className="text-sm font-semibold text-slate-700 mb-3">{item.title}</p>
+                                  )}
+                                  <audio
+                                    controls
+                                    className="w-full h-12"
+                                    src={item.audioUrl}
+                                  >
+                                    Your browser does not support the audio element.
+                                  </audio>
+                                </div>
+                              ))}
+                            </div>
+                          )
                         ) : (
                           <p className="text-slate-500 text-sm">No audio items added</p>
                         )}
@@ -1230,6 +1251,25 @@ export default function PresentationPage() {
                         />
                       </div>
                     )}
+
+                    {/* YouTube Video */}
+                    {module.type === "youtube" && module.content?.youtubeUrl && (
+                      <div className="w-full">
+                        {module.content.youtubeTitle && (
+                          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+                            {module.content.youtubeTitle}
+                          </h3>
+                        )}
+                        <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                          <iframe
+                            src={`https://www.youtube.com/embed/${module.content.youtubeUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1] || ''}`}
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1239,11 +1279,11 @@ export default function PresentationPage() {
             <div className="text-center py-10 mt-6 border-t border-slate-200">
               <p className="text-slate-500 mb-4">End of lesson</p>
               <Link
-                href={`/lessons/${params.level}`}
+                href="/presentation"
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back to Lessons
+                Back to Presentation
               </Link>
             </div>
           </div>
