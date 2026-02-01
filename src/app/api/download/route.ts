@@ -18,8 +18,9 @@ export async function GET(request: NextRequest) {
     const blob = await response.blob();
     const headers = new Headers();
 
-    // Content type
-    headers.set("Content-Type", blob.type || "application/octet-stream");
+    // Content type - PDF için octet-stream kullan ki Safari önizleme yapmasın
+    const isPdf = blob.type === "application/pdf" || filename.toLowerCase().endsWith(".pdf");
+    headers.set("Content-Type", isPdf ? "application/octet-stream" : (blob.type || "application/octet-stream"));
 
     // Content-Disposition with both filename and filename* for better compatibility
     const encodedFilename = encodeURIComponent(filename).replace(/['()]/g, escape);
