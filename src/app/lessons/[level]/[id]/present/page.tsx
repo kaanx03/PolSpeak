@@ -373,6 +373,9 @@ export default function PresentationPage() {
     showResults: boolean;
   }}>({});
 
+  // Image lightbox state
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
   // Initialize shuffled options for inline choice modules
   useEffect(() => {
     modules.forEach((module) => {
@@ -641,7 +644,10 @@ export default function PresentationPage() {
                         {(module.content.questionImageUrl || module.content.questionAudioUrl) && (
                           <div className="space-y-3 mb-4">
                             {module.content.questionImageUrl && (
-                              <div className="w-full rounded-lg overflow-hidden border border-slate-200">
+                              <div
+                                onClick={() => setLightboxImage(module.content.questionImageUrl)}
+                                className="w-full rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                              >
                                 <img
                                   src={module.content.questionImageUrl}
                                   alt="Question"
@@ -829,7 +835,10 @@ export default function PresentationPage() {
                               return (
                                 <div key={item.id} className="flex flex-col">
                                   {/* Image */}
-                                  <div className="aspect-square rounded-lg overflow-hidden bg-slate-100 border border-slate-200 mb-2">
+                                  <div
+                                    onClick={() => item.imageUrl && setLightboxImage(item.imageUrl)}
+                                    className="aspect-square rounded-lg overflow-hidden bg-slate-100 border border-slate-200 mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                                  >
                                     {item.imageUrl ? (
                                       <img
                                         src={item.imageUrl}
@@ -1141,11 +1150,14 @@ export default function PresentationPage() {
                                 {module.content.imageItems.map((item: ImageItem) => (
                                   <div key={item.id} className="w-full flex flex-col items-center">
                                     {item.imageUrl ? (
-                                      <div className={`rounded-lg overflow-hidden border border-slate-200 ${
-                                        item.orientation === "portrait"
-                                          ? "h-[70vh] w-auto"
-                                          : "w-full"
-                                      }`}>
+                                      <div
+                                        onClick={() => setLightboxImage(item.imageUrl)}
+                                        className={`rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity ${
+                                          item.orientation === "portrait"
+                                            ? "h-[70vh] w-auto"
+                                            : "w-full"
+                                        }`}
+                                      >
                                         <img
                                           src={item.imageUrl}
                                           alt={item.caption || "Image"}
@@ -1172,11 +1184,14 @@ export default function PresentationPage() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {module.content.imageItems.map((item: ImageItem) => (
                                   <div key={item.id} className="flex flex-col">
-                                    <div className={`rounded-lg overflow-hidden border border-slate-200 ${
-                                      item.orientation === "portrait"
-                                        ? "h-[50vh] flex justify-center bg-slate-50"
-                                        : "w-full"
-                                    }`}>
+                                    <div
+                                      onClick={() => item.imageUrl && setLightboxImage(item.imageUrl)}
+                                      className={`rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity ${
+                                        item.orientation === "portrait"
+                                          ? "h-[50vh] flex justify-center bg-slate-50"
+                                          : "w-full"
+                                      }`}
+                                    >
                                       {item.imageUrl ? (
                                         <img
                                           src={item.imageUrl}
@@ -1204,9 +1219,12 @@ export default function PresentationPage() {
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {module.content.imageItems.map((item: ImageItem) => (
                                   <div key={item.id} className="flex flex-col">
-                                    <div className={`rounded-lg overflow-hidden bg-slate-100 border border-slate-200 ${
-                                      item.orientation === "portrait" ? "aspect-[3/4]" : "aspect-video"
-                                    }`}>
+                                    <div
+                                      onClick={() => item.imageUrl && setLightboxImage(item.imageUrl)}
+                                      className={`rounded-lg overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity ${
+                                        item.orientation === "portrait" ? "aspect-[3/4]" : "aspect-video"
+                                      }`}
+                                    >
                                       {item.imageUrl ? (
                                         <img
                                           src={item.imageUrl}
@@ -1355,7 +1373,10 @@ export default function PresentationPage() {
                                 >
                                   {/* Image */}
                                   {item.imageUrl && (
-                                    <div className="flex-shrink-0">
+                                    <div
+                                      onClick={() => setLightboxImage(item.imageUrl)}
+                                      className="flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                                    >
                                       <img
                                         src={item.imageUrl}
                                         alt={item.word}
@@ -1415,6 +1436,30 @@ export default function PresentationPage() {
           </div>
         </div>
       </div>
+
+      {/* Image Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 size-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+          >
+            <span className="material-symbols-outlined text-3xl">close</span>
+          </button>
+
+          {/* Image */}
+          <img
+            src={lightboxImage}
+            alt="Expanded view"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

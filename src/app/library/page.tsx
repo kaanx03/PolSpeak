@@ -57,6 +57,7 @@ export default function LibraryPage() {
   const [showDeleteFolderModal, setShowDeleteFolderModal] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<LibraryFolder | null>(null);
   const [showMoveToFolderMenu, setShowMoveToFolderMenu] = useState<string | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
 
   // Fix hydration mismatch
   useEffect(() => {
@@ -233,6 +234,40 @@ export default function LibraryPage() {
     setShowMenu(null);
   };
 
+  const getFileExtension = (type: LibraryFile["type"]): string => {
+    switch (type) {
+      case "pdf": return ".pdf";
+      case "image": return ".png";
+      case "audio": return ".mp3";
+      case "video": return ".mp4";
+      default: return "";
+    }
+  };
+
+  const handleDownload = async (file: LibraryFile) => {
+    const extension = getFileExtension(file.type);
+    const filenameWithExt = file.name.includes(".") ? file.name : file.name + extension;
+
+    setDownloadingFileId(file.id);
+
+    try {
+      const response = await fetch(`/api/download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filenameWithExt)}`);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filenameWithExt;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+    } finally {
+      setDownloadingFileId(null);
+    }
+  };
+
   const handleConfirmDelete = () => {
     if (fileToDelete) {
       deleteFile(fileToDelete.id);
@@ -379,6 +414,14 @@ export default function LibraryPage() {
           className="group relative flex flex-col bg-white rounded-xl p-4 border border-slate-200 hover:border-indigo-500/30 transition-all hover:shadow-lg"
           onMouseLeave={handleMouseLeave}
         >
+          {/* Download overlay */}
+          {downloadingFileId === file.id && (
+            <div className="absolute inset-0 bg-white/90 rounded-xl z-30 flex flex-col items-center justify-center gap-3">
+              <div className="size-10 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+              <span className="text-sm font-medium text-slate-700">Downloading...</span>
+            </div>
+          )}
+
           {/* 3 dot menu */}
           <div className="absolute top-4 right-4 z-10">
             <button
@@ -462,10 +505,7 @@ export default function LibraryPage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const a = document.createElement("a");
-                    a.href = file.url;
-                    a.download = file.name;
-                    a.click();
+                    handleDownload(file);
                     setShowMenu(null);
                   }}
                   className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
@@ -1105,16 +1145,21 @@ export default function LibraryPage() {
             {/* Modal Footer */}
             <div className="flex items-center justify-end gap-3 p-4 border-t border-slate-200">
               <button
-                onClick={() => {
-                  const a = document.createElement("a");
-                  a.href = selectedFile.url;
-                  a.download = selectedFile.name;
-                  a.click();
-                }}
-                className="px-4 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors flex items-center gap-2"
+                onClick={() => handleDownload(selectedFile)}
+                disabled={downloadingFileId === selectedFile.id}
+                className="px-4 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                <span className="material-symbols-outlined text-[20px]">download</span>
-                Download
+                {downloadingFileId === selectedFile.id ? (
+                  <>
+                    <div className="size-5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                    Downloading...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px]">download</span>
+                    Download
+                  </>
+                )}
               </button>
               <button
                 onClick={() => setShowPreview(false)}
