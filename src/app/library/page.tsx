@@ -247,11 +247,23 @@ export default function LibraryPage() {
   const handleDownload = async (file: LibraryFile) => {
     const extension = getFileExtension(file.type);
     const filenameWithExt = file.name.includes(".") ? file.name : file.name + extension;
+    const downloadUrl = `/api/download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filenameWithExt)}`;
 
+    // iOS/iPadOS detection
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+
+    if (isIOS) {
+      // iOS'ta aynı sayfada kal ve indir - Content-Disposition sayesinde sayfa değişmeyecek
+      window.location.href = downloadUrl;
+      return;
+    }
+
+    // Diğer platformlar için blob yaklaşımı
     setDownloadingFileId(file.id);
 
     try {
-      const response = await fetch(`/api/download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filenameWithExt)}`);
+      const response = await fetch(downloadUrl);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");

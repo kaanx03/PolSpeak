@@ -17,9 +17,23 @@ export async function GET(request: NextRequest) {
 
     const blob = await response.blob();
     const headers = new Headers();
+
+    // Content type
     headers.set("Content-Type", blob.type || "application/octet-stream");
-    headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
+
+    // Content-Disposition with both filename and filename* for better compatibility
+    const encodedFilename = encodeURIComponent(filename).replace(/['()]/g, escape);
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${filename.replace(/[^\x20-\x7E]/g, "_")}"; filename*=UTF-8''${encodedFilename}`
+    );
+
     headers.set("Content-Length", blob.size.toString());
+
+    // Prevent caching to ensure fresh download
+    headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    headers.set("Pragma", "no-cache");
+    headers.set("Expires", "0");
 
     return new NextResponse(blob, { headers });
   } catch (error) {
