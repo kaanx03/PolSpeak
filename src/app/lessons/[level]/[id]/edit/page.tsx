@@ -1075,6 +1075,14 @@ export default function LessonEditorPage() {
         newModules[index],
       ];
       setModules(newModules);
+
+      // Scroll to the moved module's new position
+      setTimeout(() => {
+        const moduleElement = document.querySelector(`[data-module-index="${newIndex}"]`);
+        if (moduleElement) {
+          moduleElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
     }
   };
 
@@ -1844,6 +1852,7 @@ export default function LessonEditorPage() {
                   {modules.map((module, index) => (
                     <div
                       key={module.id}
+                      data-module-index={index}
                       className="bg-white rounded-lg md:rounded-xl border-2 border-slate-200 hover:border-indigo-300 p-3 md:p-6 group transition-all"
                     >
                       <div className="flex items-center justify-between mb-3 md:mb-4">
