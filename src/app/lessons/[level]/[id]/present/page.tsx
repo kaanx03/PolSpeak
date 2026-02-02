@@ -429,7 +429,7 @@ export default function PresentationPage() {
       <div className="hidden lg:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
         {/* Back Button */}
         <Link
-          href="/presentation"
+          href={`/lessons/${params.level}`}
           className="mx-auto mb-6 size-9 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
@@ -470,7 +470,7 @@ export default function PresentationPage() {
         <div className="lg:hidden flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
-              href="/presentation"
+              href={`/lessons/${params.level}`}
               className="inline-flex items-center gap-1 text-sm font-medium text-blue-600"
             >
               <span className="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -1426,11 +1426,11 @@ export default function PresentationPage() {
             <div className="text-center py-10 mt-6 border-t border-slate-200">
               <p className="text-slate-500 mb-4">End of lesson</p>
               <Link
-                href="/presentation"
+                href={`/lessons/${params.level}`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back to Presentation
+                Back to Lessons
               </Link>
             </div>
           </div>

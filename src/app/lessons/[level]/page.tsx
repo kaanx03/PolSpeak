@@ -4,13 +4,14 @@ import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { fetchLessonContentByLevel, createLessonContent } from "@/lib/supabase-helpers";
+import { fetchLessonContentByLevel, createLessonContent, updateLessonsOrder } from "@/lib/supabase-helpers";
 
 interface Lesson {
   id: string;
   title: string;
   modules: number;
   status: "published" | "draft";
+  order?: number;
 }
 
 export default function LevelLessonsPage() {
@@ -18,6 +19,8 @@ export default function LevelLessonsPage() {
   const router = useRouter();
   const level = (params.level as string)?.toUpperCase();
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     loadLessons();
@@ -26,21 +29,70 @@ export default function LevelLessonsPage() {
   const loadLessons = async () => {
     const lessonsData = await fetchLessonContentByLevel(params.level as string);
 
-    const mappedLessons: Lesson[] = lessonsData.map((lesson: any) => ({
+    const mappedLessons: Lesson[] = lessonsData.map((lesson: any, index: number) => ({
       id: lesson.id,
       title: lesson.title || "Untitled Lesson",
       modules: lesson.modules?.length || 0,
       status: lesson.status || "draft",
+      order: lesson.order ?? index,
     }));
 
-    // Sort: published first, then draft
-    mappedLessons.sort((a, b) => {
-      if (a.status === "published" && b.status === "draft") return -1;
-      if (a.status === "draft" && b.status === "published") return 1;
-      return 0;
-    });
-
     setLessons(mappedLessons);
+  };
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (dropIndex: number) => {
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newLessons = [...lessons];
+    const [draggedLesson] = newLessons.splice(draggedIndex, 1);
+    newLessons.splice(dropIndex, 0, draggedLesson);
+
+    // Update order values
+    const updatedLessons = newLessons.map((lesson, index) => ({
+      ...lesson,
+      order: index,
+    }));
+
+    setLessons(updatedLessons);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    // Save to database
+    try {
+      await updateLessonsOrder(
+        updatedLessons.map((lesson) => ({
+          id: lesson.id,
+          order: lesson.order!,
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to save order:", error);
+      loadLessons(); // Reload original order on error
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleCreateLesson = async () => {
@@ -111,15 +163,31 @@ export default function LevelLessonsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {lessons.map((lesson) => (
+                {lessons.map((lesson, index) => (
                   <div
                     key={lesson.id}
-                    className="bg-white rounded-xl border border-[#e2e8f0] p-6 hover:shadow-md transition-all"
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={() => handleDrop(index)}
+                    onDragEnd={handleDragEnd}
+                    className={`bg-white rounded-xl border p-6 transition-all cursor-grab active:cursor-grabbing ${
+                      draggedIndex === index
+                        ? "opacity-50 border-indigo-400 shadow-lg"
+                        : dragOverIndex === index
+                        ? "border-indigo-400 bg-indigo-50/50"
+                        : "border-[#e2e8f0] hover:shadow-md"
+                    }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-bold text-[#1e293b]">{lesson.title}</h3>
+                      <div className="flex items-center gap-3 flex-1">
+                        <span className="material-symbols-outlined text-slate-400 cursor-grab active:cursor-grabbing select-none">
+                          drag_indicator
+                        </span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-bold text-[#1e293b]">{lesson.title}</h3>
                           {lesson.status === "published" ? (
                             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
                               <span className="size-1.5 rounded-full bg-emerald-500"></span>
@@ -132,7 +200,8 @@ export default function LevelLessonsPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-[#64748b]">{lesson.modules} {lesson.modules === 1 ? 'module' : 'modules'}</p>
+                          <p className="text-sm text-[#64748b]">{lesson.modules} {lesson.modules === 1 ? 'module' : 'modules'}</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Link

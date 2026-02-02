@@ -370,18 +370,18 @@ export default function DashboardPage() {
               </button>
 
               <button
-                onClick={() => router.push("/presentation")}
+                onClick={() => router.push("/library")}
                 className="p-4 rounded-lg border border-[#e2e8f0] bg-white hover:border-indigo-300 transition-all text-left group"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <div className="size-10 rounded-lg bg-rose-100 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-rose-600">slideshow</span>
+                    <span className="material-symbols-outlined text-rose-600">folder_open</span>
                   </div>
-                  <h3 className="text-sm font-bold text-[#1e293b]">Presentation</h3>
+                  <h3 className="text-sm font-bold text-[#1e293b]">Library</h3>
                 </div>
-                <p className="text-xs text-[#64748b] mb-3">Present lessons to students</p>
+                <p className="text-xs text-[#64748b] mb-3">Manage your files</p>
                 <div className="flex items-center text-xs text-rose-600 font-medium group-hover:gap-2 transition-all">
-                  <span>Start Presenting</span>
+                  <span>Open Library</span>
                   <span className="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">
                     arrow_forward
                   </span>

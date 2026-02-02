@@ -546,6 +546,7 @@ export interface LessonContent {
   status: 'draft' | 'published';
   curriculum_topic_id?: string;
   modules: any[];
+  order?: number;
   last_modified?: string;
   created_at?: string;
   updated_at?: string;
@@ -573,6 +574,7 @@ export async function fetchLessonContentByLevel(level: string) {
     .from('lesson_content')
     .select('*')
     .eq('level', level.toLowerCase())
+    .order('order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -630,6 +632,26 @@ export async function updateLessonContent(id: string, updates: Partial<LessonCon
   }
 
   return data;
+}
+
+// Update lesson order (bulk update for drag-and-drop reordering)
+export async function updateLessonsOrder(lessons: { id: string; order: number }[]) {
+  const updates = lessons.map(lesson =>
+    supabase
+      .from('lesson_content')
+      .update({ order: lesson.order })
+      .eq('id', lesson.id)
+  );
+
+  const results = await Promise.all(updates);
+
+  const errors = results.filter(r => r.error);
+  if (errors.length > 0) {
+    console.error('Error updating lesson orders:', errors);
+    throw new Error('Failed to update lesson order');
+  }
+
+  return true;
 }
 
 // Helper function to extract storage paths from R2 URLs

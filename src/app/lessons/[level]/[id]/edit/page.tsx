@@ -711,21 +711,6 @@ export default function LessonEditorPage() {
   };
 
   const publishLesson = async () => {
-    const validation = validateModules();
-    if (!validation.isValid) {
-      showToast(validation.errors[0], "error");
-      // Show additional errors if there are multiple
-      if (validation.errors.length > 1) {
-        setTimeout(() => {
-          showToast(
-            `${validation.errors.length - 1} more validation error(s)`,
-            "warning",
-          );
-        }, 500);
-      }
-      return;
-    }
-
     try {
       const lessonData = {
         title: lessonTitle,
@@ -749,6 +734,22 @@ export default function LessonEditorPage() {
       }
     } catch (error: any) {
       showToast("Failed to publish: " + error.message, "error");
+    }
+  };
+
+  const unpublishLesson = async () => {
+    try {
+      await updateLessonContent(params.id as string, {
+        title: lessonTitle,
+        modules: modules,
+        level: params.level as any,
+        status: "draft" as const,
+        curriculum_topic_id: curriculumTopicId || undefined,
+      });
+      setLessonStatus("draft");
+      showToast("Lesson unpublished", "success");
+    } catch (error: any) {
+      showToast("Failed to unpublish: " + error.message, "error");
     }
   };
 
@@ -1605,10 +1606,15 @@ export default function LessonEditorPage() {
                     </button>
                   )}
                   {lessonStatus === "published" && (
-                    <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md border border-emerald-200">
-                      <span className="size-1.5 rounded-full bg-emerald-500"></span>
-                      Published
-                    </span>
+                    <button
+                      onClick={unpublishLesson}
+                      className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 rounded-md border border-emerald-200 transition-colors group"
+                      title="Click to unpublish"
+                    >
+                      <span className="size-1.5 rounded-full bg-emerald-500 group-hover:bg-amber-500"></span>
+                      <span className="group-hover:hidden">Published</span>
+                      <span className="hidden group-hover:inline">Unpublish</span>
+                    </button>
                   )}
                 </>
               )}
@@ -1638,10 +1644,15 @@ export default function LessonEditorPage() {
                     </button>
                   )}
                   {lessonStatus === "published" && (
-                    <span
-                      className="md:hidden size-2 rounded-full bg-emerald-500"
-                      title="Published"
-                    ></span>
+                    <button
+                      onClick={unpublishLesson}
+                      className="md:hidden p-2 bg-emerald-100 hover:bg-amber-100 text-emerald-600 hover:text-amber-600 rounded-lg transition-colors"
+                      title="Unpublish"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        unpublished
+                      </span>
+                    </button>
                   )}
                 </>
               )}
