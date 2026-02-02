@@ -1076,13 +1076,19 @@ export default function LessonEditorPage() {
       ];
       setModules(newModules);
 
-      // Scroll to the moved module's new position
-      setTimeout(() => {
-        const moduleElement = document.querySelector(`[data-module-index="${newIndex}"]`);
-        if (moduleElement) {
-          moduleElement.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }, 50);
+      // Scroll to keep the module's top part visible
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const moduleElement = document.querySelector(`[data-module-index="${newIndex}"]`);
+          if (moduleElement) {
+            moduleElement.scrollIntoView({ behavior: "smooth", block: "start" });
+            // Adjust for header
+            setTimeout(() => {
+              window.scrollBy({ top: -120, behavior: "smooth" });
+            }, 100);
+          }
+        }, 0);
+      });
     }
   };
 
