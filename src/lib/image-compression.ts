@@ -30,11 +30,16 @@ export async function compressImage(
   }
 
   const {
-    maxSizeMB = 0.5, // Target max size: 500 KB
+    maxSizeMB = 1.5, // Target max size: 1.5 MB
     maxWidthOrHeight = 1920, // Max dimension
     useWebWorker = true,
     fileType = 'image/webp', // Convert to WebP by default
   } = options;
+
+  // Skip compression if file is already under the target size
+  if (file.size <= maxSizeMB * 1024 * 1024) {
+    return file;
+  }
 
   try {
     const compressionOptions = {
@@ -42,16 +47,16 @@ export async function compressImage(
       maxWidthOrHeight,
       useWebWorker,
       fileType,
-      initialQuality: 0.8, // Start with 80% quality
+      initialQuality: 0.9, // Start with 90% quality
     };
 
     const compressedFile = await imageCompression(file, compressionOptions);
 
-    // If compressed file is still too large, try again with lower quality
+    // If compressed file is still too large, try again with moderate quality
     if (compressedFile.size > FILE_SIZE_LIMITS.image) {
       const secondAttempt = await imageCompression(file, {
         ...compressionOptions,
-        initialQuality: 0.6,
+        initialQuality: 0.8,
         maxWidthOrHeight: 1280,
       });
 

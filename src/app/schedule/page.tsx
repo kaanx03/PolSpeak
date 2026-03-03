@@ -98,6 +98,14 @@ const daysOfWeek = [
   "Sunday",
 ];
 
+// Helper function to format date in local timezone (avoids UTC timezone issues)
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function SchedulePage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -177,7 +185,7 @@ export default function SchedulePage() {
           studentColor: student.color,
           title: "Regular Lesson",
           day: schedule.day,
-          date: lessonDate.toISOString().split("T")[0],
+          date: formatLocalDate(lessonDate),
           startTime: schedule.startTime,
           endTime: schedule.endTime,
           duration: schedule.duration,
@@ -200,7 +208,7 @@ export default function SchedulePage() {
           groupColor: group.color,
           title: "Group Lesson",
           day: schedule.day,
-          date: lessonDate.toISOString().split("T")[0],
+          date: formatLocalDate(lessonDate),
           startTime: schedule.startTime,
           endTime: schedule.endTime,
           duration: schedule.duration,
@@ -258,6 +266,7 @@ export default function SchedulePage() {
       // Calculate the actual date for this lesson based on current week
       const weekDates = getWeekDates();
       const lessonDate = weekDates[lesson.day];
+      const dateStr = formatLocalDate(lessonDate);
 
       // Map frontend fields to database fields
       await createLesson({
@@ -268,7 +277,7 @@ export default function SchedulePage() {
         group_color: lesson.groupColor,
         title: lesson.title,
         day: lesson.day,
-        date: lessonDate.toISOString().split("T")[0],
+        date: dateStr,
         start_time: lesson.startTime,
         end_time: lesson.endTime,
         duration: lesson.duration,
@@ -367,7 +376,7 @@ export default function SchedulePage() {
   };
 
   const getLessonsForSlot = (day: number, time: string, date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = formatLocalDate(date);
 
     return lessons.filter((lesson) => {
       const lessonHour = parseInt(lesson.startTime.split(":")[0]);

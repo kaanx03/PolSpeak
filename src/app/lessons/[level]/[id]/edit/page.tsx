@@ -1070,25 +1070,25 @@ export default function LessonEditorPage() {
     const newModules = [...modules];
     const newIndex = direction === "up" ? index - 1 : index + 1;
     if (newIndex >= 0 && newIndex < modules.length) {
+      // Get the other module's height before swap (the one we're swapping with)
+      const otherModuleElement = document.querySelector(`[data-module-index="${newIndex}"]`);
+      const otherModuleHeight = otherModuleElement?.getBoundingClientRect().height || 0;
+      const gap = 16; // gap-4 = 16px
+
       [newModules[index], newModules[newIndex]] = [
         newModules[newIndex],
         newModules[index],
       ];
       setModules(newModules);
 
-      // Scroll to keep the module's top part visible
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          const moduleElement = document.querySelector(`[data-module-index="${newIndex}"]`);
-          if (moduleElement) {
-            moduleElement.scrollIntoView({ behavior: "smooth", block: "start" });
-            // Adjust for header
-            setTimeout(() => {
-              window.scrollBy({ top: -120, behavior: "smooth" });
-            }, 100);
-          }
-        }, 0);
-      });
+      // Adjust scroll so the module stays in the same visual position
+      // When moving up, scroll up by the height of the module that moved down
+      // When moving down, scroll down by the height of the module that moved up
+      const scrollAmount = direction === "up"
+        ? -(otherModuleHeight + gap)
+        : (otherModuleHeight + gap);
+
+      window.scrollBy({ top: scrollAmount, behavior: "instant" });
     }
   };
 
