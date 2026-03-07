@@ -8,6 +8,22 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
+// Public pages that don't require auth
+const PUBLIC_PATHS = ["/", "/login/teacher", "/login/student"];
+
+// Pages only accessible by students (exact match or /student/*)
+const STUDENT_PATHS = ["/student"];
+
+// Pages accessible to both roles (lesson present view)
+const isPresentPath = (path: string) => path.endsWith("/present");
+
+const isStudentPath = (path: string) =>
+  STUDENT_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+
+// Pages only accessible by teachers (everything else that's protected, except present pages)
+const isTeacherPath = (path: string) =>
+  !PUBLIC_PATHS.includes(path) && !isStudentPath(path) && !isPresentPath(path);
+
 export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -17,40 +33,62 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
         if (!session) {
-          // Not authenticated, redirect to login
-          router.push('/');
+          if (!PUBLIC_PATHS.includes(pathname)) {
+            router.push("/");
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        const role = session.user.user_metadata?.role;
+        const isStudent = role === "student";
+
+        // Student trying to access teacher pages
+        if (isStudent && isTeacherPath(pathname)) {
+          router.push("/student");
+          return;
+        }
+
+        // Teacher trying to access student pages
+        if (!isStudent && isStudentPath(pathname)) {
+          router.push("/dashboard");
           return;
         }
 
         setIsAuthenticated(true);
       } catch (error) {
-        console.error('Auth check error:', error);
-        router.push('/');
+        console.error("Auth check error:", error);
+        router.push("/");
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Only check auth if not on login page
-    if (pathname !== '/') {
+    if (!PUBLIC_PATHS.includes(pathname)) {
       checkAuth();
     } else {
       setIsLoading(false);
     }
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Check if we're awaiting 2FA verification
-      const awaiting2FA = sessionStorage.getItem('awaiting_2fa') === 'true';
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const awaiting2FA = sessionStorage.getItem("awaiting_2fa") === "true";
 
-      if (!session && pathname !== '/') {
-        router.push('/');
-      } else if (session && pathname === '/' && !awaiting2FA) {
-        // Only redirect to dashboard if not waiting for 2FA
-        router.push('/dashboard');
+      if (!session && !PUBLIC_PATHS.includes(pathname)) {
+        router.push("/");
+      } else if (session && PUBLIC_PATHS.includes(pathname) && !awaiting2FA) {
+        const role = session.user.user_metadata?.role;
+        if (role === "student") {
+          router.push("/student");
+        } else {
+          router.push("/dashboard");
+        }
       }
     });
 
@@ -59,7 +97,6 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     };
   }, [router, pathname]);
 
-  // Show loading spinner while checking auth
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -71,8 +108,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Don't render protected content until authenticated
-  if (!isAuthenticated && pathname !== '/') {
+  if (!isAuthenticated && !PUBLIC_PATHS.includes(pathname) && !isPresentPath(pathname)) {
     return null;
   }
 

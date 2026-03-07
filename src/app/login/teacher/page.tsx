@@ -1,17 +1,17 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-export default function LandingPage() {
-  const router = useRouter();
+export default function TeacherLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   // 2FA states
   const [show2FAInput, setShow2FAInput] = useState(false);
@@ -37,7 +37,10 @@ export default function LandingPage() {
     setError("");
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (error) {
         setError("Invalid email or password");
@@ -46,6 +49,7 @@ export default function LandingPage() {
       }
 
       if (data.user) {
+        // If this is a student account, deny teacher login
         if (data.user.user_metadata?.role === "student") {
           await supabase.auth.signOut();
           setError("This account is not a teacher account. Please use Student login.");
@@ -141,18 +145,32 @@ export default function LandingPage() {
 
         {/* Card */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 sm:p-10 border border-white/20">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-navy-dark">Welcome back</h2>
-            <p className="text-text-muted text-xs mt-1">Sign in to your teaching dashboard</p>
+          <div className="flex items-center gap-3 mb-6">
+            <Link
+              href="/"
+              className="size-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+            >
+              <span className="material-symbols-outlined text-slate-600 text-xl">
+                arrow_back
+              </span>
+            </Link>
+            <div>
+              <h2 className="text-xl font-bold text-navy-dark">Teacher Sign In</h2>
+              <p className="text-text-muted text-xs">Access your teaching dashboard</p>
+            </div>
           </div>
 
           {!show2FAInput ? (
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-navy-dark mb-2">Email</label>
+                <label className="block text-sm font-medium text-navy-dark mb-2">
+                  Email
+                </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <span className="material-symbols-outlined text-slate-400 text-xl">mail</span>
+                    <span className="material-symbols-outlined text-slate-400 text-xl">
+                      mail
+                    </span>
                   </span>
                   <input
                     type="email"
@@ -167,10 +185,14 @@ export default function LandingPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-navy-dark mb-2">Password</label>
+                <label className="block text-sm font-medium text-navy-dark mb-2">
+                  Password
+                </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <span className="material-symbols-outlined text-slate-400 text-xl">lock</span>
+                    <span className="material-symbols-outlined text-slate-400 text-xl">
+                      lock
+                    </span>
                   </span>
                   <input
                     type="password"
@@ -208,18 +230,6 @@ export default function LandingPage() {
                   "Sign In"
                 )}
               </button>
-
-              {/* Student login link */}
-              <div className="pt-4 border-t border-slate-100 text-center">
-                <p className="text-text-muted text-sm mb-1.5">Are you a student?</p>
-                <Link
-                  href="/login/student"
-                  className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">person</span>
-                  Sign in as Student
-                </Link>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleVerify2FA} className="space-y-5">
@@ -232,7 +242,9 @@ export default function LandingPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-navy-dark mb-2 text-center">Verification Code</label>
+                <label className="block text-sm font-medium text-navy-dark mb-2 text-center">
+                  Verification Code
+                </label>
                 <input
                   type="text"
                   value={twoFactorCode}

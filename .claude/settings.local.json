@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content \"C:\\\\Users\\\\PC\\\\AppData\\\\Local\\\\Temp\\\\next-panic-f2495304163ac98d8bcb4258541f6f96.log\" -Tail 30)",
+      "Bash(ls C:UsersPCAppDataLocalTempnext-panic*.log)",
+      "Bash(npx tsc --noEmit)"
+    ]
+  }
+}

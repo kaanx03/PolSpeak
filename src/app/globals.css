@@ -13,6 +13,8 @@
   --color-border-light: rgba(255, 255, 255, 0.2);
 
   --font-family-display: "Lexend", sans-serif;
+
+  --breakpoint-wide: 1100px;
 }
 
 body {

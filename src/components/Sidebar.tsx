@@ -311,6 +311,24 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               </span>
               <span className={`text-sm ${mounted && pathname === "/curriculum" ? "font-bold" : "font-medium"}`}>Curriculum</span>
             </a>
+            <a
+              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
+                mounted && pathname === "/teacher/homework"
+                  ? "bg-white/10 text-white shadow-sm ring-1 ring-white/5"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white group"
+              }`}
+              href="/teacher/homework"
+            >
+              <span
+                className={`material-symbols-outlined ${
+                  mounted && pathname === "/teacher/homework" ? "text-indigo-400" : "group-hover:text-white transition-colors"
+                }`}
+                style={mounted && pathname === "/teacher/homework" ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              >
+                assignment
+              </span>
+              <span className={`text-sm ${mounted && pathname === "/teacher/homework" ? "font-bold" : "font-medium"}`}>Homework</span>
+            </a>
           </nav>
         </div>
         <div className="p-4 border-t border-white/5 flex flex-col gap-2">
@@ -465,6 +483,24 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
                 menu_book
               </span>
               <span className="text-[10px] font-medium hidden md:block">Curriculum</span>
+            </a>
+
+            {/* Homework */}
+            <a
+              href="/teacher/homework"
+              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
+                mounted && pathname === "/teacher/homework"
+                  ? "bg-indigo-500/20 text-indigo-300"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <span
+                className="material-symbols-outlined text-[24px]"
+                style={mounted && pathname === "/teacher/homework" ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              >
+                assignment
+              </span>
+              <span className="text-[10px] font-medium hidden md:block">Homework</span>
             </a>
           </div>
         </nav>

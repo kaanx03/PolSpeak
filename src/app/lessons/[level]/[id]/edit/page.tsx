@@ -15,6 +15,11 @@ import {
   uploadFile,
   deleteFile,
   getFilePathFromUrl,
+  fetchStudents,
+  fetchStudentsForSharedLesson,
+  shareLesson,
+  unshareLesson,
+  type Student,
 } from "@/lib/supabase-helpers";
 import { processFileForUpload, formatFileSize } from "@/lib/image-compression";
 
@@ -377,6 +382,11 @@ export default function LessonEditorPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
 
+  // Share with students
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [sharedStudentIds, setSharedStudentIds] = useState<string[]>([]);
+  const [sharingLoading, setSharingLoading] = useState<string | null>(null);
+
   // Auto-save function - saves immediately after changes
   const autoSave = async () => {
     // Skip auto-save for new lessons that haven't been created yet
@@ -412,6 +422,15 @@ export default function LessonEditorPage() {
     autoSave();
   }, [modules, lessonTitle, curriculumTopicId]);
 
+  // Load students and share state when lesson id is known
+  useEffect(() => {
+    if (!params.id || params.id === "new") return;
+    fetchStudents().then((s) => setAllStudents(s));
+    fetchStudentsForSharedLesson(params.id as string).then((shared) =>
+      setSharedStudentIds(shared.map((s) => s.student_id))
+    );
+  }, [params.id]);
+
   // Load curriculum topics from Supabase
   useEffect(() => {
     loadCurriculumTopics();
@@ -422,6 +441,25 @@ export default function LessonEditorPage() {
     // Filter topics by current level
     const levelTopics = allTopics.filter((t: any) => t.level === params.level);
     setCurriculumTopics(levelTopics);
+  };
+
+  const handleToggleShare = async (studentId: string) => {
+    if (!params.id || params.id === "new") return;
+    setSharingLoading(studentId);
+    try {
+      const isShared = sharedStudentIds.includes(studentId);
+      if (isShared) {
+        await unshareLesson(params.id as string, studentId);
+        setSharedStudentIds((prev) => prev.filter((id) => id !== studentId));
+      } else {
+        await shareLesson(params.id as string, studentId);
+        setSharedStudentIds((prev) => [...prev, studentId]);
+      }
+    } catch {
+      showToast("Failed to update sharing. Please try again.", "error");
+    } finally {
+      setSharingLoading(null);
+    }
   };
 
   // Load lesson from Supabase on mount
@@ -1799,6 +1837,62 @@ export default function LessonEditorPage() {
                 Delete Lesson
               </button>
             </div>
+
+            {/* Share with Students */}
+            {!isNewLesson && allStudents.filter((s) => s.status === "active").length > 0 && (
+              <div className="mt-8 pt-8 border-t border-slate-200">
+                <h4 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">share</span>
+                  Share with Students
+                </h4>
+                <div className="space-y-1.5">
+                  {allStudents
+                    .filter((s) => s.status === "active")
+                    .map((student) => {
+                      const isShared = sharedStudentIds.includes(student.id);
+                      const isLoading = sharingLoading === student.id;
+                      return (
+                        <button
+                          key={student.id}
+                          onClick={() => handleToggleShare(student.id)}
+                          disabled={isLoading}
+                          className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all ${
+                            isShared
+                              ? "bg-indigo-50 border border-indigo-200"
+                              : "bg-slate-50 border border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div
+                            className="size-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: student.color }}
+                          >
+                            {student.initials}
+                          </div>
+                          <span className={`text-xs font-medium flex-1 truncate ${isShared ? "text-indigo-700" : "text-slate-600"}`}>
+                            {student.name}
+                          </span>
+                          {isLoading ? (
+                            <svg className="h-3.5 w-3.5 animate-spin text-indigo-500 shrink-0" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <span className={`material-symbols-outlined text-sm shrink-0 ${isShared ? "text-indigo-500" : "text-slate-300"}`}>
+                              {isShared ? "check_circle" : "radio_button_unchecked"}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+                {sharedStudentIds.length > 0 && (
+                  <p className="text-[11px] text-indigo-600 mt-2 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">info</span>
+                    Shared with {sharedStudentIds.length} student{sharedStudentIds.length !== 1 ? "s" : ""}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right Panel - Canvas */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { fetchStudents, fetchGroups, createStudent, createGroup, fetchAllLessonHistory, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
+import { supabase } from "@/lib/supabase";
 
 interface Student {
   id: string;
@@ -80,6 +81,14 @@ export default function StudentsPage() {
   const [activeTab, setActiveTab] = useState<"individual" | "groups">("individual");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [copiedField, setCopiedField] = useState<"email" | "password" | null>(null);
+
+  const copyToClipboard = (text: string, field: "email" | "password") => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   useEffect(() => {
     loadData();
@@ -446,22 +455,72 @@ export default function StudentsPage() {
         </div>
       </main>
 
+      {/* Student Created - Credentials Modal */}
+      {createdCredentials && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="size-14 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+                <span className="material-symbols-outlined text-emerald-600 text-3xl">check_circle</span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Student Created!</h3>
+              <p className="text-slate-500 text-sm mt-1">Share these login credentials with the student.</p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mb-5 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 w-16 shrink-0">Email</span>
+                <span className="text-sm font-mono text-slate-800 truncate flex-1">{createdCredentials.email}</span>
+              </div>
+              <div className="border-t border-slate-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 w-16 shrink-0">Password</span>
+                <span className="text-sm font-mono text-slate-800 flex-1">{createdCredentials.password}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`);
+                  setCopiedField("email");
+                  setTimeout(() => setCopiedField(null), 2000);
+                }}
+                className="flex-1 h-11 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {copiedField === "email" ? "check" : "content_copy"}
+                </span>
+                {copiedField === "email" ? "Copied!" : "Copy All"}
+              </button>
+              <button
+                onClick={() => setCreatedCredentials(null)}
+                className="flex-1 h-11 bg-navy-dark hover:bg-navy-light text-white font-semibold rounded-xl transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Student Modal */}
       {showAddModal && (
         <AddStudentModal
           groups={groups}
           onClose={() => setShowAddModal(false)}
-          onSave={async (student) => {
+          onSave={async (student, password) => {
+            const email = student.name.trim().toLowerCase().replace(/\s+/g, '.') + '@polspeak.com';
             try {
-              // Map frontend fields to database fields
-              await createStudent({
+              // 1. Create student record in DB
+              const created = await createStudent({
                 name: student.name,
                 initials: student.initials,
                 color: student.color,
                 level: student.level,
                 status: student.status,
                 group_id: student.groupId,
-                email: student.email,
+                email,
                 phone: student.phone,
                 parent_name: student.parentName,
                 parent_email: student.parentEmail,
@@ -473,11 +532,34 @@ export default function StudentsPage() {
                 custom_topics: student.customTopics || [],
                 payments: student.payments || [],
               });
-              await loadData(); // Reload data
+
+              // 2. Create Supabase auth account and link
+              const { data: { session: teacherSession } } = await supabase.auth.getSession();
+              const res = await fetch('/api/student-auth/create', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(teacherSession?.access_token ? { Authorization: `Bearer ${teacherSession.access_token}` } : {}),
+                },
+                body: JSON.stringify({
+                  email,
+                  password,
+                  studentId: created.id,
+                  studentName: student.name,
+                }),
+              });
+
+              const result = await res.json();
+              await loadData();
               setShowAddModal(false);
+              if (res.ok) {
+                setCreatedCredentials({ email, password });
+              } else {
+                setCreatedCredentials({ email, password });
+                console.error('Auth setup error:', result.error);
+              }
             } catch (error) {
               console.error('Failed to create student:', error);
-              alert('Failed to create student. Please try again.');
             }
           }}
         />
@@ -518,11 +600,12 @@ function AddStudentModal({
 }: {
   groups: Group[];
   onClose: () => void;
-  onSave: (student: Student) => void;
+  onSave: (student: Student, password: string) => void;
 }) {
   const [name, setName] = useState("");
   const [level, setLevel] = useState("a1");
   const [groupId, setGroupId] = useState<string>("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const generateInitials = (name: string) => {
@@ -547,11 +630,20 @@ function AddStudentModal({
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
+  // Convert name to email: "John Smith" → "john.smith@polspeak.com"
+  const nameToEmail = (n: string) =>
+    n.trim().toLowerCase().replace(/\s+/g, ".") + "@polspeak.com";
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name.trim()) {
       setError("Please enter student name");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
       return;
     }
 
@@ -570,8 +662,10 @@ function AddStudentModal({
       lessonHistory: [],
     };
 
-    onSave(newStudent);
+    onSave(newStudent, password);
   };
+
+  const previewEmail = name.trim() ? nameToEmail(name) : "name@polspeak.com";
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -606,6 +700,33 @@ function AddStudentModal({
               placeholder="John Smith"
               required
             />
+            {name.trim() && (
+              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">alternate_email</span>
+                Login email: <span className="font-mono font-medium text-indigo-600">{previewEmail}</span>
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Student Password
+            </label>
+            <input
+              type="text"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError("");
+              }}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
+              placeholder="Min. 6 characters"
+              required
+              minLength={6}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Share this password with the student — they use it to log in.
+            </p>
           </div>
 
           <div>

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
   const filename = request.nextUrl.searchParams.get("filename") || "download";
 
   if (!url) {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
+  }
+
+  // SSRF protection: only allow requests to our own R2 bucket
+  if (!R2_PUBLIC_URL || !url.startsWith(R2_PUBLIC_URL + "/")) {
+    return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
 
   try {

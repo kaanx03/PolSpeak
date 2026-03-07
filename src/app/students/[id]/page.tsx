@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { fetchStudentById, fetchGroupById, fetchGroups, updateStudent, deleteStudent, fetchStudentLessonHistory, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
+import { fetchStudentById, fetchGroupById, fetchGroups, updateStudent, deleteStudent, fetchStudentLessonHistory, fetchStudentHomework, deleteStudentHomework, deleteFile, StudentHomework, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
+import { supabase } from "@/lib/supabase";
 
 interface Student {
   id: string;
@@ -852,6 +853,9 @@ export default function StudentDetailPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [curriculumTopics, setCurriculumTopics] = useState<CurriculumTopic[]>([]);
   const [activeTab, setActiveTab] = useState<"overview" | "homework" | "topics" | "payments" | "history">("overview");
+  const [assignedHomework, setAssignedHomework] = useState<StudentHomework[]>([]);
+  const [expandedHw, setExpandedHw] = useState<Set<string>>(new Set());
+  const toggleHw = (id: string) => setExpandedHw((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   // Modals
   const [showEditModal, setShowEditModal] = useState(false);
@@ -906,6 +910,10 @@ export default function StudentDetailPage() {
       }));
 
       setStudent(mappedStudent);
+
+      // Load teacher-assigned homework from student_homework table
+      const hwData = await fetchStudentHomework(studentId);
+      setAssignedHomework(hwData);
 
       // Load group if student belongs to one
       if (studentData.group_id) {
@@ -975,6 +983,36 @@ export default function StudentDetailPage() {
 
   const handleDelete = async () => {
     try {
+      const studentData = await fetchStudentById(studentId);
+
+      // 1. Delete all R2 files belonging to this student's homework
+      const homeworkList = await fetchStudentHomework(studentId);
+      for (const hw of homeworkList) {
+        const allFiles = [...(hw.teacher_files || []), ...(hw.student_files || [])];
+        for (const file of allFiles) {
+          if (file.storagePath) {
+            try { await deleteFile(file.storagePath); } catch { /* ignore individual failures */ }
+          }
+        }
+        try { await deleteStudentHomework(hw.id); } catch { /* ignore */ }
+      }
+
+      // 2. Delete auth account — by userId if linked, otherwise look up by email
+      const email = studentData?.name
+        ? studentData.name.trim().toLowerCase().replace(/\s+/g, '.') + '@polspeak.com'
+        : null;
+
+      const { data: { session: teacherSession } } = await supabase.auth.getSession();
+      await fetch('/api/student-auth/create', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(teacherSession?.access_token ? { Authorization: `Bearer ${teacherSession.access_token}` } : {}),
+        },
+        body: JSON.stringify({ userId: studentData?.user_id || null, email }),
+      });
+
+      // 3. Delete student record
       await deleteStudent(studentId);
       router.push("/students");
     } catch (error) {
@@ -1102,7 +1140,7 @@ export default function StudentDetailPage() {
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                Homework ({student.homework?.length || 0})
+                Homework ({(student.homework?.length || 0) + assignedHomework.length})
               </button>
               <button
                 onClick={() => setActiveTab("topics")}
@@ -1268,7 +1306,7 @@ export default function StudentDetailPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-slate-600">Pending Homework</span>
                         <span className="text-sm font-bold text-amber-600">
-                          {student.homework?.filter((h) => !h.completed).length || 0}
+                          {(student.homework?.filter((h) => !h.completed).length || 0) + assignedHomework.filter((h) => h.status === 'pending').length}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -1297,19 +1335,112 @@ export default function StudentDetailPage() {
 
             {/* Homework Tab */}
             {activeTab === "homework" && (
+              <div className="space-y-4">
+                {/* Teacher-assigned homework from homework page */}
+                {assignedHomework.length > 0 && (
+                  <div className="bg-white rounded-lg border border-slate-200 p-5">
+                    <h3 className="text-lg font-bold text-slate-900 mb-4">Assigned by Teacher</h3>
+                    <div className="space-y-2">
+                      {assignedHomework.map((hw) => {
+                        const statusColor =
+                          hw.status === 'graded' ? 'bg-emerald-100 text-emerald-700' :
+                          hw.status === 'submitted' ? 'bg-blue-100 text-blue-700' :
+                          'bg-amber-100 text-amber-700';
+                        const statusLabel =
+                          hw.status === 'graded' ? 'Graded' :
+                          hw.status === 'submitted' ? 'Submitted' :
+                          'Pending';
+                        const isExpanded = expandedHw.has(hw.id);
+                        return (
+                          <div key={hw.id} className="rounded-lg border border-slate-200 overflow-hidden">
+                            {/* Header — always visible */}
+                            <button
+                              onClick={() => toggleHw(hw.id)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                            >
+                              <div className={`size-2 rounded-full shrink-0 ${
+                                hw.status === 'graded' ? 'bg-emerald-500' :
+                                hw.status === 'submitted' ? 'bg-blue-500' :
+                                'bg-amber-400'
+                              }`} />
+                              <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-slate-800">{hw.title}</p>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{statusLabel}</span>
+                                {hw.grade && <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">{hw.grade}</span>}
+                              </div>
+                              {hw.due_date && !isExpanded && (
+                                <span className="text-xs text-slate-400 shrink-0">Due {new Date(hw.due_date).toLocaleDateString()}</span>
+                              )}
+                              <span className={`material-symbols-outlined text-slate-400 text-lg shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                expand_more
+                              </span>
+                            </button>
+
+                            {/* Expanded content */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-2">
+                                {hw.description && <p className="text-xs text-slate-500">{hw.description}</p>}
+                                <div className="flex items-center gap-4 flex-wrap">
+                                  {hw.due_date && <span className="text-xs text-slate-400 flex items-center gap-1"><span className="material-symbols-outlined text-sm">calendar_today</span>Due: {new Date(hw.due_date).toLocaleDateString()}</span>}
+                                  {hw.submitted_at && <span className="text-xs text-slate-400 flex items-center gap-1"><span className="material-symbols-outlined text-sm">task_alt</span>Submitted: {new Date(hw.submitted_at).toLocaleDateString()}</span>}
+                                </div>
+                                {hw.teacher_files && hw.teacher_files.length > 0 && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Attached files</p>
+                                    {hw.teacher_files.map((f, i) => (
+                                      <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                                        className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-xs group"
+                                      >
+                                        <span className="material-symbols-outlined text-slate-400 group-hover:text-indigo-500 text-base">description</span>
+                                        <span className="text-slate-600 flex-1 truncate font-medium">{f.name}</span>
+                                        <span className="material-symbols-outlined text-slate-400 text-sm">download</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                                {hw.student_files && hw.student_files.length > 0 && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Student submission</p>
+                                    {hw.student_files.map((f, i) => (
+                                      <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                                        className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-200 text-xs group hover:bg-blue-100 transition-all"
+                                      >
+                                        <span className="material-symbols-outlined text-blue-500 text-base">upload_file</span>
+                                        <span className="text-blue-700 flex-1 truncate font-medium">{f.name}</span>
+                                        <span className="material-symbols-outlined text-blue-400 text-sm">download</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                                {hw.student_note && (
+                                  <div className="px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 italic">
+                                    <span className="font-semibold not-italic text-slate-500">Note: </span>{hw.student_note}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Simple homework notes */}
+                {(student.homework?.length > 0 || assignedHomework.length === 0) && (
               <div className="bg-white rounded-lg border border-slate-200 p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-900">Homework Assignments</h3>
+                  <h3 className="text-lg font-bold text-slate-900">Homework Notes</h3>
                   <button
                     onClick={() => setShowAddHomeworkModal(true)}
                     className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[18px]">add</span>
-                    Add Homework
+                    Add Note
                   </button>
                 </div>
                 {student.homework?.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-12">No homework assigned yet</p>
+                  <p className="text-sm text-slate-500 text-center py-8">No notes yet</p>
                 ) : (
                   <div className="space-y-2">
                     {student.homework?.map((hw) => (
@@ -1364,6 +1495,8 @@ export default function StudentDetailPage() {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
                 )}
               </div>
             )}

@@ -801,12 +801,14 @@ function sanitizeFileName(fileName: string): string {
 // Upload file to Cloudflare R2
 export async function uploadFile(file: File, folder?: string): Promise<{ url: string; name: string; storagePath: string }> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
     const formData = new FormData();
     formData.append("file", file);
     formData.append("folder", folder || "uploads");
 
     const response = await fetch("/api/upload", {
       method: "POST",
+      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
       body: formData,
     });
 
@@ -830,9 +832,13 @@ export async function uploadFile(file: File, folder?: string): Promise<{ url: st
 // Delete file from Cloudflare R2
 export async function deleteFile(storagePath: string) {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
     const response = await fetch("/api/upload", {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
       body: JSON.stringify({ storagePath }),
     });
 
@@ -1071,6 +1077,254 @@ export async function toggleLibraryFilePin(id: string, isPinned: boolean) {
   if (error) {
     console.error('Error toggling pin:', error);
     throw error;
+  }
+
+  return data;
+}
+
+// ========================================
+// STUDENT HOMEWORK
+// ========================================
+
+export interface HomeworkFile {
+  url: string;
+  name: string;
+  type: string;
+  storagePath?: string;
+}
+
+export interface StudentHomework {
+  id: string;
+  student_id: string;
+  title: string;
+  description?: string;
+  type: 'file' | 'lesson';
+  // Legacy single-file fields (kept for backward compat)
+  file_url?: string;
+  file_name?: string;
+  file_type?: string;
+  // Multi-file fields
+  teacher_files?: HomeworkFile[];
+  student_files?: HomeworkFile[];
+  student_note?: string;
+  status?: 'pending' | 'submitted' | 'graded';
+  grade?: string;
+  submitted_at?: string;
+  lesson_content_id?: string;
+  due_date?: string;
+  created_at?: string;
+}
+
+// Fetch all homework for a specific student (used in student panel)
+export async function fetchStudentHomework(studentId: string): Promise<StudentHomework[]> {
+  const { data, error } = await supabase
+    .from('student_homework')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching student homework:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch all homework (teacher view - all students)
+export async function fetchAllStudentHomework(): Promise<StudentHomework[]> {
+  const { data, error } = await supabase
+    .from('student_homework')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching all homework:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Create homework assignment
+export async function createStudentHomework(
+  hw: Omit<StudentHomework, 'id' | 'created_at'>
+): Promise<StudentHomework> {
+  const { data, error } = await supabase
+    .from('student_homework')
+    .insert([hw])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating homework:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Update homework assignment
+export async function updateStudentHomework(
+  id: string,
+  updates: Partial<Omit<StudentHomework, 'id' | 'created_at'>>
+): Promise<StudentHomework> {
+  const { data, error } = await supabase
+    .from('student_homework')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating homework:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Submit homework (student submits files)
+export async function submitHomework(id: string, files: HomeworkFile[]): Promise<StudentHomework> {
+  const { data, error } = await supabase
+    .from('student_homework')
+    .update({
+      student_files: files,
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error submitting homework:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Grade homework (teacher grades)
+export async function gradeHomework(id: string, grade: string): Promise<StudentHomework> {
+  const { data, error } = await supabase
+    .from('student_homework')
+    .update({ grade, status: 'graded' })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error grading homework:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Delete homework assignment
+export async function deleteStudentHomework(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('student_homework')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting homework:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// ========================================
+// SHARED LESSONS
+// ========================================
+
+export interface SharedLesson {
+  id: string;
+  lesson_content_id: string;
+  student_id: string;
+  shared_at?: string;
+}
+
+// Fetch shared lessons for a student
+export async function fetchSharedLessonsForStudent(studentId: string): Promise<SharedLesson[]> {
+  const { data, error } = await supabase
+    .from('shared_lessons')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('shared_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching shared lessons:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Fetch which students a lesson is shared with
+export async function fetchStudentsForSharedLesson(lessonContentId: string): Promise<SharedLesson[]> {
+  const { data, error } = await supabase
+    .from('shared_lessons')
+    .select('*')
+    .eq('lesson_content_id', lessonContentId);
+
+  if (error) {
+    console.error('Error fetching shared lesson students:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Share a lesson with a student
+export async function shareLesson(lessonContentId: string, studentId: string): Promise<SharedLesson> {
+  const { data, error } = await supabase
+    .from('shared_lessons')
+    .upsert(
+      { lesson_content_id: lessonContentId, student_id: studentId },
+      { onConflict: 'lesson_content_id,student_id' }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error sharing lesson:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Remove lesson share from a student
+export async function unshareLesson(lessonContentId: string, studentId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('shared_lessons')
+    .delete()
+    .eq('lesson_content_id', lessonContentId)
+    .eq('student_id', studentId);
+
+  if (error) {
+    console.error('Error unsharing lesson:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+// Fetch student by their auth user_id
+export async function fetchStudentByUserId(userId: string) {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching student by user_id:', error);
+    return null;
   }
 
   return data;
