@@ -1105,6 +1105,7 @@ export interface StudentHomework {
   file_type?: string;
   // Multi-file fields
   teacher_files?: HomeworkFile[];
+  teacher_links?: { url: string; label: string }[];
   student_files?: HomeworkFile[];
   student_note?: string;
   status?: 'pending' | 'submitted' | 'graded';

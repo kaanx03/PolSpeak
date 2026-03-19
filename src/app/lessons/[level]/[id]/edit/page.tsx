@@ -91,7 +91,8 @@ interface Module {
     | "imagechoice"
     | "inlinechoice"
     | "youtube"
-    | "vocabulary";
+    | "vocabulary"
+    | "iframe";
   content: {
     text?: string;
     textBgColor?: string; // Background color for text module
@@ -117,6 +118,8 @@ interface Module {
     quizletIframe?: string;
     geniallyUrl?: string;
     baamboozleUrl?: string;
+    iframeCode?: string;
+    iframeHeight?: number;
     trueFalseTitle?: string;
     trueFalseStatements?: TrueFalseStatement[];
     imageChoiceTitle?: string;
@@ -704,6 +707,12 @@ export default function LessonEditorPage() {
             errors.push(`Module ${moduleNum} (Miro): Please add a Miro link`);
           }
           break;
+
+        case "iframe":
+          if (!module.content.iframeCode || module.content.iframeCode.trim() === "") {
+            errors.push(`Module ${moduleNum} (Embed): Please add an iframe code or URL`);
+          }
+          break;
       }
     });
 
@@ -912,6 +921,12 @@ export default function LessonEditorPage() {
       icon: "dashboard",
       label: "Miro Board",
       color: "bg-amber-100 hover:bg-amber-200 text-amber-700",
+    },
+    {
+      type: "iframe",
+      icon: "web",
+      label: "Link",
+      color: "bg-teal-100 hover:bg-teal-200 text-teal-700",
     },
   ];
 
@@ -4974,6 +4989,55 @@ export default function LessonEditorPage() {
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                                 <p className="text-xs text-green-700 font-medium">
                                   ✓ Miro board configured
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* IFRAME MODULE */}
+                        {module.type === "iframe" && (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">
+                                Sayfa Linki:
+                              </label>
+                              <input
+                                type="text"
+                                value={module.content.iframeCode || ""}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    iframeCode: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                placeholder="https://example.com/embed/..."
+                              />
+                              <p className="text-xs text-slate-500">
+                                Gömülecek sayfanın linkini yapıştırın
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-slate-700">
+                                Yükseklik (px):
+                              </label>
+                              <input
+                                type="number"
+                                value={module.content.iframeHeight || 450}
+                                onChange={(e) =>
+                                  updateModuleContent(module.id, {
+                                    iframeHeight: parseInt(e.target.value) || 450,
+                                  })
+                                }
+                                min={200}
+                                max={1200}
+                                className="w-32 bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              />
+                            </div>
+                            {module.content.iframeCode && (
+                              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium">
+                                  ✓ Sayfa linki eklendi
                                 </p>
                               </div>
                             )}

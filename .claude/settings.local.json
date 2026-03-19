@@ -4,7 +4,18 @@
       "Bash(Get-Content \"C:\\\\Users\\\\PC\\\\AppData\\\\Local\\\\Temp\\\\next-panic-f2495304163ac98d8bcb4258541f6f96.log\" -Tail 30)",
       "Bash(ls C:UsersPCAppDataLocalTempnext-panic*.log)",
       "Bash(npx tsc --noEmit)",
-      "Bash(npm uninstall @supabase/auth-helpers-nextjs)"
+      "Bash(npm uninstall @supabase/auth-helpers-nextjs)",
+      "Bash(node -e \"require\\(''next''\\)\")",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(find /c/Users/PC/Desktop/PolSpeak -name *lesson* -o -name *ders* -o -name *course*)",
+      "Bash(wc -l c:/Users/PC/Desktop/PolSpeak/src/app/lessons/[level]/[id]/edit/page.tsx)",
+      "Bash(grep -n \"wordwall\\\\|genially\\\\|miro\\\\|quizlet\\\\|baamboozle\\\\|iframe\" c:/Users/PC/Desktop/PolSpeak/src/app/lessons/[level]/[id]/edit/page.tsx)",
+      "Bash(grep -n \"wordwall\\\\|miro\\\\|baamboozle\\\\|iframe\" c:/Users/PC/Desktop/PolSpeak/src/app/lessons/[level]/[id]/present/page.tsx)",
+      "Bash(grep -n \"iframeCode\\\\|Embed \\(iframe\\)\\\\|iframe Kodu\\\\|iframe module\\\\|IFRAME MODULE\\\\|iframeHeight\\\\|iframe.*teal\\\\|web.*icon\\\\|Embed.*teal\" c:/Users/PC/Desktop/PolSpeak/src/app/lessons/[level]/[id]/edit/page.tsx)",
+      "Bash(grep -rn \"teacher_files\\\\|student_homework\" c:/Users/PC/Desktop/PolSpeak/*.sql)",
+      "Bash(grep -n \"PdfViewer\\\\|import.*Pdf\" c:/Users/PC/Desktop/PolSpeak/src/app/lessons/[level]/[id]/present/page.tsx)",
+      "Bash(grep -n \"lightbox\\\\|isImage\\\\|setLightbox\" c:/Users/PC/Desktop/PolSpeak/src/app/student/homework/[id]/page.tsx)",
+      "Bash(grep -n \"hw.grade\\\\|grade\" c:/Users/PC/Desktop/PolSpeak/src/app/student/homework/[id]/page.tsx)"
     ]
   }
 }

@@ -29,6 +29,9 @@ export default function HomeworkPage() {
   const [editingHw, setEditingHw] = useState<StudentHomework | null>(null);
   const [form, setForm] = useState({ student_id: "", title: "", description: "", due_date: "" });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [removedAttachments, setRemovedAttachments] = useState<Set<number>>(new Set());
+  const [links, setLinks] = useState<{ url: string; label: string }[]>([]);
+  const [linkInput, setLinkInput] = useState({ url: "", label: "" });
   const [uploading, setUploading] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -71,6 +74,9 @@ export default function HomeworkPage() {
   const resetForm = () => {
     setForm({ student_id: "", title: "", description: "", due_date: "" });
     setSelectedFiles([]);
+    setRemovedAttachments(new Set());
+    setLinks([]);
+    setLinkInput({ url: "", label: "" });
     setEditingHw(null);
     setShowForm(false);
   };
@@ -84,7 +90,17 @@ export default function HomeworkPage() {
       due_date: hw.due_date ? hw.due_date.slice(0, 10) : "",
     });
     setSelectedFiles([]);
+    setRemovedAttachments(new Set());
+    setLinks(hw.teacher_links || []);
+    setLinkInput({ url: "", label: "" });
     setShowForm(true);
+  };
+
+  const addLink = () => {
+    const url = linkInput.url.trim();
+    if (!url) return;
+    setLinks((prev) => [...prev, { url, label: linkInput.label.trim() || url }]);
+    setLinkInput({ url: "", label: "" });
   };
 
   const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,12 +122,18 @@ export default function HomeworkPage() {
       }
 
       if (editingHw) {
-        const existingFiles = editingHw.teacher_files || [];
+        const existingFiles = (editingHw.teacher_files || []).filter((_, i) => !removedAttachments.has(i));
+        // Delete removed files from storage
+        for (const idx of removedAttachments) {
+          const f = (editingHw.teacher_files || [])[idx];
+          if (f?.storagePath) deleteFile(f.storagePath).catch(() => {});
+        }
         await updateStudentHomework(editingHw.id, {
           student_id: form.student_id,
           title: form.title,
           description: form.description || undefined,
           teacher_files: [...existingFiles, ...uploadedFiles],
+          teacher_links: links,
           due_date: form.due_date || undefined,
         });
         showToast("Homework updated!", "success");
@@ -120,8 +142,9 @@ export default function HomeworkPage() {
           student_id: form.student_id,
           title: form.title,
           description: form.description || undefined,
-          type: uploadedFiles.length > 0 ? "file" : "lesson",
+          type: uploadedFiles.length > 0 || links.length > 0 ? "file" : "lesson",
           teacher_files: uploadedFiles,
+          teacher_links: links,
           due_date: form.due_date || undefined,
           status: "pending",
         });
@@ -309,9 +332,11 @@ export default function HomeworkPage() {
                             </span>
                           )}
                           {hw.grade && (
-                            <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              <span className="material-symbols-outlined text-sm">workspace_premium</span>
-                              {hw.grade}
+                            <span className="flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              {[1,2,3,4,5].map((star) => (
+                                <span key={star} className={`material-symbols-outlined text-sm ${parseInt(hw.grade!) >= star ? "text-amber-400" : "text-slate-300"}`}
+                                  style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              ))}
                             </span>
                           )}
                         </div>
@@ -362,7 +387,7 @@ export default function HomeworkPage() {
                     {/* Expanded content */}
                     {isExpanded && (
                       <>
-                        {(hw.description || teacherFiles.length > 0) && (
+                        {(hw.description || teacherFiles.length > 0 || (hw.teacher_links || []).length > 0) && (
                           <div className="px-4 sm:px-5 pb-4 ml-12 sm:ml-13 space-y-3">
                             {hw.description && (
                               <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">{hw.description}</p>
@@ -379,6 +404,23 @@ export default function HomeworkPage() {
                                   >
                                     <span className="material-symbols-outlined text-slate-400 group-hover:text-indigo-500 text-base transition-colors">description</span>
                                     <span className="text-slate-600 flex-1 truncate font-medium">{f.name}</span>
+                                    <span className="material-symbols-outlined text-slate-400 text-sm">open_in_new</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                            {(hw.teacher_links || []).length > 0 && (
+                              <div className="grid grid-cols-1 gap-1.5">
+                                {(hw.teacher_links || []).map((link, i) => (
+                                  <a
+                                    key={i}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all group text-xs"
+                                  >
+                                    <span className="material-symbols-outlined text-slate-400 group-hover:text-blue-500 text-base transition-colors">link</span>
+                                    <span className="text-slate-600 flex-1 truncate font-medium">{link.label}</span>
                                     <span className="material-symbols-outlined text-slate-400 text-sm">open_in_new</span>
                                   </a>
                                 ))}
@@ -436,19 +478,26 @@ export default function HomeworkPage() {
 
                             {/* Grading */}
                             {gradingId === hw.id ? (
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={gradeInput}
-                                  onChange={(e) => setGradeInput(e.target.value)}
-                                  placeholder="e.g. 85/100 or A+"
-                                  className="flex-1 h-9 px-3 rounded-xl bg-white border border-slate-200 text-sm focus:ring-2 focus:ring-navy-dark outline-none"
-                                  autoFocus
-                                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleGradeSave(hw.id); } }}
-                                />
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                      key={star}
+                                      type="button"
+                                      onClick={() => setGradeInput(String(star))}
+                                      className="transition-transform hover:scale-110"
+                                    >
+                                      <span className={`material-symbols-outlined text-2xl ${parseInt(gradeInput) >= star ? "text-amber-400" : "text-slate-300"}`}
+                                        style={{ fontVariationSettings: "'FILL' 1" }}>
+                                        star
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
                                 <button
                                   onClick={() => handleGradeSave(hw.id)}
-                                  className="h-9 px-4 bg-navy-dark text-white text-xs font-bold rounded-xl hover:bg-navy-light transition-colors"
+                                  disabled={!gradeInput}
+                                  className="h-9 px-4 bg-navy-dark text-white text-xs font-bold rounded-xl hover:bg-navy-light transition-colors disabled:opacity-40"
                                 >
                                   Save
                                 </button>
@@ -462,9 +511,13 @@ export default function HomeworkPage() {
                             ) : (
                               <div className="flex items-center gap-3">
                                 {hw.grade && (
-                                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
-                                    <span className="material-symbols-outlined text-emerald-500 text-base">workspace_premium</span>
-                                    <span className="text-sm font-bold text-emerald-700">{hw.grade}</span>
+                                  <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <span key={star} className={`material-symbols-outlined text-lg ${parseInt(hw.grade!) >= star ? "text-amber-400" : "text-slate-300"}`}
+                                        style={{ fontVariationSettings: "'FILL' 1" }}>
+                                        star
+                                      </span>
+                                    ))}
                                   </div>
                                 )}
                                 <button
@@ -582,12 +635,22 @@ export default function HomeworkPage() {
                 {editingHw && (editingHw.teacher_files || []).length > 0 && (
                   <div className="mb-2 space-y-1">
                     <p className="text-xs text-slate-400 font-medium mb-1">Already attached:</p>
-                    {(editingHw.teacher_files || []).map((f, i) => (
-                      <div key={i} className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                        <span className="material-symbols-outlined text-slate-400 text-base">attach_file</span>
-                        <span className="text-slate-600 flex-1 truncate">{f.name}</span>
-                      </div>
-                    ))}
+                    {(editingHw.teacher_files || []).map((f, i) => {
+                      if (removedAttachments.has(i)) return null;
+                      return (
+                        <div key={i} className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                          <span className="material-symbols-outlined text-slate-400 text-base">attach_file</span>
+                          <span className="text-slate-600 flex-1 truncate">{f.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setRemovedAttachments((prev) => new Set([...prev, i]))}
+                            className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
+                          >
+                            <span className="material-symbols-outlined text-base">close</span>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -620,6 +683,51 @@ export default function HomeworkPage() {
                     <p className="text-xs text-slate-400">PDF, DOC, PNG, JPG, MP3, MP4, ZIP</p>
                   </div>
                 </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-navy-dark mb-1.5">
+                  Links <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <div className="space-y-2">
+                  {links.map((link, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-xl border border-blue-200 text-xs">
+                      <span className="material-symbols-outlined text-blue-500 text-base">link</span>
+                      <span className="text-blue-700 flex-1 truncate">{link.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => setLinks((prev) => prev.filter((_, j) => j !== i))}
+                        className="text-blue-400 hover:text-red-500 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-base">close</span>
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={linkInput.label}
+                      onChange={(e) => setLinkInput((prev) => ({ ...prev, label: e.target.value }))}
+                      placeholder="Label (optional)"
+                      className="w-1/3 h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:ring-2 focus:ring-navy-dark outline-none"
+                    />
+                    <input
+                      type="url"
+                      value={linkInput.url}
+                      onChange={(e) => setLinkInput((prev) => ({ ...prev, url: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }}
+                      placeholder="https://..."
+                      className="flex-1 h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:ring-2 focus:ring-navy-dark outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={addLink}
+                      className="h-9 px-3 bg-navy-dark hover:bg-navy-light text-white rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">

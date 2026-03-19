@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -10,13 +10,10 @@ import {
   fetchSharedLessonsForStudent,
   fetchLessonContentById,
   fetchCurriculumTopics,
-  uploadFile,
-  deleteFile,
   type Student,
   type StudentHomework,
   type SharedLesson,
   type LessonContent,
-  type HomeworkFile,
   type CurriculumTopic,
 } from "@/lib/supabase-helpers";
 
@@ -172,17 +169,6 @@ export default function StudentPage() {
   const [sharedLessons, setSharedLessons] = useState<SharedLessonWithContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"homework" | "lessons" | "progress" | "settings">("homework");
-  const [expandedHw, setExpandedHw] = useState<Set<string>>(new Set());
-
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
-  const [hwErrors, setHwErrors] = useState<Record<string, string>>({});
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  // Submission editing state
-  const [pendingFiles, setPendingFiles] = useState<Record<string, File[]>>({});
-  const [editNotes, setEditNotes] = useState<Record<string, string>>({});
-  const [removedIndices, setRemovedIndices] = useState<Record<string, Set<number>>>({});
-  const [confirmRemove, setConfirmRemove] = useState<{ hwId: string; idx: number } | null>(null);
 
   useEffect(() => { loadStudentData(); }, []);
 
@@ -227,113 +213,6 @@ export default function StudentPage() {
     router.push("/");
   };
 
-  const handleFilesStaged = (hwId: string, fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-    const newFiles = Array.from(fileList); // Convert BEFORE clearing (clearing invalidates FileList in browser)
-    if (fileRefs.current[hwId]) fileRefs.current[hwId]!.value = "";
-    setPendingFiles((prev) => ({ ...prev, [hwId]: [...(prev[hwId] || []), ...newFiles] }));
-  };
-
-  const removePendingFile = (hwId: string, index: number) => {
-    setPendingFiles((prev) => {
-      const updated = [...(prev[hwId] || [])];
-      updated.splice(index, 1);
-      return { ...prev, [hwId]: updated };
-    });
-  };
-
-  const markFileRemoved = (hwId: string, idx: number) => {
-    setRemovedIndices((prev) => {
-      const s = new Set(prev[hwId] || []);
-      s.add(idx);
-      return { ...prev, [hwId]: s };
-    });
-    setConfirmRemove(null);
-  };
-
-  const getNoteValue = (hw: StudentHomework) =>
-    editNotes[hw.id] !== undefined ? editNotes[hw.id] : (hw.student_note || "");
-
-  const isSubmitEnabled = (hw: StudentHomework): boolean => {
-    const files = pendingFiles[hw.id] || [];
-    const removed = removedIndices[hw.id];
-    const noteValue = getNoteValue(hw);
-    const noteChanged = editNotes[hw.id] !== undefined && editNotes[hw.id] !== (hw.student_note || "");
-    const hasRemovals = removed && removed.size > 0;
-
-    // Fresh submission
-    if (!hw.student_files?.length && !hw.student_note) {
-      return files.length > 0 || noteValue.trim().length > 0;
-    }
-    // Editing existing submission
-    return files.length > 0 || Boolean(hasRemovals) || noteChanged;
-  };
-
-  const handleSubmit = async (hw: StudentHomework) => {
-    if (!studentId) return;
-
-    const files = pendingFiles[hw.id] || [];
-    const noteValue = getNoteValue(hw);
-    const removed = removedIndices[hw.id] || new Set<number>();
-
-    setSubmittingId(hw.id);
-    setHwErrors((prev) => { const n = { ...prev }; delete n[hw.id]; return n; });
-    setConfirmRemove(null);
-
-    try {
-      const uploaded: HomeworkFile[] = [];
-      for (const file of files) {
-        const result = await uploadFile(file, `homework/student/${studentId}`);
-        uploaded.push({ url: result.url, name: file.name, type: file.type, storagePath: result.storagePath });
-      }
-
-      const existingAll = hw.student_files || [];
-      const existingKept = existingAll.filter((_, i) => !removed.has(i));
-      const allFiles = [...existingKept, ...uploaded];
-
-      // Delete removed files from R2 (fire and forget)
-      for (const idx of removed) {
-        const f = existingAll[idx];
-        if (f?.storagePath) deleteFile(f.storagePath).catch(() => {});
-      }
-
-      // Optimistic update
-      setHomework((prev) => prev.map((h) =>
-        h.id === hw.id
-          ? { ...h, status: "submitted" as const, student_files: allFiles, student_note: noteValue || undefined, submitted_at: new Date().toISOString() }
-          : h
-      ));
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/homework/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          homeworkId: hw.id,
-          files: uploaded,
-          existingFiles: existingKept,
-          note: noteValue || undefined,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Submit failed");
-
-      setHomework((prev) => prev.map((h) => h.id === hw.id ? json.data : h));
-      setPendingFiles((prev) => { const n = { ...prev }; delete n[hw.id]; return n; });
-      setEditNotes((prev) => { const n = { ...prev }; delete n[hw.id]; return n; });
-      setRemovedIndices((prev) => { const n = { ...prev }; delete n[hw.id]; return n; });
-    } catch (err: any) {
-      console.error("Submit failed:", err);
-      setHomework((prev) => prev.map((h) => h.id === hw.id ? hw : h));
-      setHwErrors((prev) => ({ ...prev, [hw.id]: err.message || "Upload failed. Please try again." }));
-    } finally {
-      setSubmittingId(null);
-    }
-  };
 
   const getLevelColor = (level: string) => {
     const colors: Record<string, string> = {
@@ -384,16 +263,9 @@ export default function StudentPage() {
   const submittedCount = homework.filter((h) => h.status === "submitted").length;
   const gradedCount = homework.filter((h) => h.status === "graded").length;
 
-  const toggleExpand = (id: string) => {
-    setExpandedHw((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
 
   const navItems = [
-    { tab: "homework" as const, label: "Homework", icon: "assignment", badge: homework.length },
+    { tab: "homework" as const, label: "Homework", icon: "assignment", badge: pendingCount },
     { tab: "lessons" as const, label: "Lessons", icon: "menu_book", badge: sharedLessons.length },
     { tab: "progress" as const, label: "Progress", icon: "bar_chart", badge: 0 },
   ];
@@ -516,209 +388,31 @@ export default function StudentPage() {
             ) : (
               homework.map((hw) => {
                 const info = getStatusInfo(hw);
-                const teacherFiles = hw.teacher_files || [];
-                const studentFiles = hw.student_files || [];
-                const canSubmit = hw.status !== "graded";
-                const isUploading = submittingId === hw.id;
-                const staged = pendingFiles[hw.id] || [];
-                const removed = removedIndices[hw.id] || new Set<number>();
-                const isExpanded = expandedHw.has(hw.id);
-
                 return (
-                  <div key={hw.id} className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-shadow ${isExpanded ? "shadow-md" : "hover:shadow-md"}`}>
-                    {/* Collapsed header — always visible */}
-                    <button
-                      onClick={() => toggleExpand(hw.id)}
-                      className="w-full flex items-center gap-3 p-4 text-left"
-                    >
-                      <div className={`size-2.5 rounded-full shrink-0 ${
-                        hw.status === "graded" ? "bg-emerald-500" :
-                        hw.status === "submitted" ? "bg-blue-500" :
-                        hw.due_date && new Date(hw.due_date) < new Date() ? "bg-red-500" :
-                        "bg-amber-400"
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-navy-dark text-sm">{hw.title}</p>
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${info.cls}`}>{info.label}</span>
-                        </div>
-                        {hw.due_date && !isExpanded && (
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Due {new Date(hw.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                          </p>
-                        )}
+                  <button
+                    key={hw.id}
+                    onClick={() => router.push(`/student/homework/${hw.id}`)}
+                    className="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left flex items-center gap-3 p-4 cursor-pointer"
+                  >
+                    <div className={`size-2.5 rounded-full shrink-0 ${
+                      hw.status === "graded" ? "bg-emerald-500" :
+                      hw.status === "submitted" ? "bg-blue-500" :
+                      hw.due_date && new Date(hw.due_date) < new Date() ? "bg-red-500" :
+                      "bg-amber-400"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-navy-dark text-sm">{hw.title}</p>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${info.cls}`}>{info.label}</span>
                       </div>
-                      <span className={`material-symbols-outlined text-slate-400 text-xl shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}>
-                        expand_more
-                      </span>
-                    </button>
-
-                    {/* Expanded content */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
-                        {/* Description + due date */}
-                        {(hw.description || hw.due_date) && (
-                          <div className="space-y-1">
-                            {hw.description && <p className="text-slate-500 text-sm leading-relaxed">{hw.description}</p>}
-                            {hw.due_date && (
-                              <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-sm">calendar_today</span>
-                                Due: {new Date(hw.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Teacher files */}
-                        {teacherFiles.length > 0 && (
-                          <div>
-                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">From teacher</p>
-                            <div className="space-y-1.5">
-                              {teacherFiles.map((f, i) => (
-                                <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group text-xs"
-                                >
-                                  <span className="material-symbols-outlined text-slate-400 group-hover:text-indigo-500 text-base transition-colors">description</span>
-                                  <span className="text-slate-600 flex-1 truncate font-medium">{f.name}</span>
-                                  <span className="material-symbols-outlined text-slate-400 text-sm">download</span>
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Grade */}
-                        {hw.grade && (
-                          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
-                            <span className="material-symbols-outlined text-emerald-500 text-base">workspace_premium</span>
-                            <span className="text-sm font-bold text-emerald-700">Grade: {hw.grade}</span>
-                          </div>
-                        )}
-
-                        {/* Graded — read-only submission */}
-                        {!canSubmit && (studentFiles.length > 0 || hw.student_note) && (
-                          <div>
-                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Your submission</p>
-                            {hw.student_note && (
-                              <div className="px-3 py-2.5 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-700 leading-relaxed mb-1.5">
-                                <span className="font-semibold block mb-0.5">Note:</span>
-                                {hw.student_note}
-                              </div>
-                            )}
-                            {studentFiles.map((f, i) => (
-                              <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 bg-blue-50 rounded-xl border border-blue-200 text-xs mb-1">
-                                <span className="material-symbols-outlined text-blue-500 text-base">upload_file</span>
-                                <span className="text-blue-700 flex-1 truncate font-medium">{f.name}</span>
-                                <span className="text-blue-400 font-medium">Submitted</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Editable submission area */}
-                        {canSubmit && (
-                          <div className="space-y-2">
-                            <input
-                              ref={(el) => { fileRefs.current[hw.id] = el; }}
-                              type="file" multiple
-                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.mp3,.mp4,.zip"
-                              onChange={(e) => handleFilesStaged(hw.id, e.target.files)}
-                              className="hidden"
-                            />
-
-                            {studentFiles.length > 0 && (
-                              <div>
-                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Submitted files</p>
-                                {studentFiles.map((f, i) => {
-                                  if (removed.has(i)) return null;
-                                  const isConfirming = confirmRemove?.hwId === hw.id && confirmRemove?.idx === i;
-                                  return (
-                                    <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition-all mb-1 ${isConfirming ? "bg-red-50 border-red-300" : "bg-blue-50 border-blue-200"}`}>
-                                      <span className="material-symbols-outlined text-blue-500 text-base">upload_file</span>
-                                      <span className="text-blue-700 flex-1 truncate font-medium">{f.name}</span>
-                                      {isConfirming ? (
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          <span className="text-red-600 font-semibold text-xs">Remove?</span>
-                                          <button onClick={() => setConfirmRemove(null)} className="h-6 px-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50">No</button>
-                                          <button onClick={() => markFileRemoved(hw.id, i)} className="h-6 px-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold">Yes</button>
-                                        </div>
-                                      ) : (
-                                        <button onClick={() => setConfirmRemove({ hwId: hw.id, idx: i })} className="text-blue-300 hover:text-red-500 transition-colors shrink-0">
-                                          <span className="material-symbols-outlined text-base">close</span>
-                                        </button>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            <textarea
-                              value={getNoteValue(hw)}
-                              onChange={(e) => setEditNotes((prev) => ({ ...prev, [hw.id]: e.target.value }))}
-                              placeholder="Add a note to your teacher... (optional)"
-                              rows={2}
-                              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-navy-dark outline-none resize-none"
-                            />
-
-                            {staged.length > 0 && (
-                              <div className="space-y-1">
-                                {staged.map((f, i) => (
-                                  <div key={i} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-xl border border-indigo-200 text-xs">
-                                    <span className="material-symbols-outlined text-indigo-500 text-base">draft</span>
-                                    <span className="text-indigo-700 flex-1 truncate font-medium">{f.name}</span>
-                                    <button onClick={() => removePendingFile(hw.id, i)} className="text-indigo-400 hover:text-red-500 transition-colors">
-                                      <span className="material-symbols-outlined text-base">close</span>
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {hwErrors[hw.id] && (
-                              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                                <span className="material-symbols-outlined text-sm">error</span>
-                                {hwErrors[hw.id]}
-                              </div>
-                            )}
-
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => fileRefs.current[hw.id]?.click()}
-                                disabled={isUploading}
-                                className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors disabled:opacity-60 border border-slate-200"
-                              >
-                                <span className="material-symbols-outlined text-base">attach_file</span>
-                                Add files
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleSubmit(hw)}
-                                disabled={isUploading || !isSubmitEnabled(hw)}
-                                className="flex-1 h-10 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 bg-navy-dark hover:bg-navy-light text-white disabled:opacity-40"
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Uploading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="material-symbols-outlined text-base">send</span>
-                                    {studentFiles.length > 0 ? "Save changes" : "Submit"}
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                      {hw.due_date && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Due {new Date(hw.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      )}
+                    </div>
+                    <span className="material-symbols-outlined text-slate-400 text-xl shrink-0">chevron_right</span>
+                  </button>
                 );
               })
             )}

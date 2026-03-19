@@ -47,7 +47,7 @@ interface InlineChoiceSentence {
 
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice" | "youtube" | "vocabulary";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice" | "youtube" | "vocabulary" | "iframe";
   content: any;
 }
 
@@ -417,6 +417,7 @@ export default function PresentationPage() {
       quizlet: "Quizlet",
       genially: "Genially",
       miro: "Miro Board",
+      iframe: "Link",
       youtube: "YouTube Video",
       vocabulary: "Vocabulary Cards",
     };
@@ -1329,6 +1330,17 @@ export default function PresentationPage() {
                             }
                             return url;
                           })()}
+                          className="w-full h-full rounded-lg border-0"
+                          allowFullScreen
+                        />
+                      </div>
+                    )}
+
+                    {/* Iframe / Embed Module */}
+                    {module.type === "iframe" && module.content?.iframeCode && (
+                      <div style={{ height: `${module.content.iframeHeight || 450}px` }} className="w-full overflow-x-hidden overflow-y-auto">
+                        <iframe
+                          src={module.content.iframeCode}
                           className="w-full h-full rounded-lg border-0"
                           allowFullScreen
                         />

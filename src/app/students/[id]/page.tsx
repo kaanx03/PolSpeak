@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { fetchStudentById, fetchGroupById, fetchGroups, updateStudent, deleteStudent, fetchStudentLessonHistory, fetchStudentHomework, deleteStudentHomework, deleteFile, StudentHomework, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
+import { fetchStudentById, fetchGroupById, fetchGroups, updateStudent, deleteStudent, fetchStudentLessonHistory, fetchStudentHomework, deleteStudentHomework, deleteFile, fetchCurriculumTopics, StudentHomework, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
 import { supabase } from "@/lib/supabase";
 
 interface Student {
@@ -944,11 +944,9 @@ export default function StudentDetailPage() {
       studentIds: [],
     })));
 
-    // Load curriculum topics from localStorage (will be migrated later)
-    const savedTopics = localStorage.getItem("curriculum-topics");
-    if (savedTopics) {
-      setCurriculumTopics(JSON.parse(savedTopics));
-    }
+    // Load curriculum topics from Supabase
+    const topics = await fetchCurriculumTopics();
+    setCurriculumTopics(topics);
   };
 
   const saveStudent = async (updated: Student) => {
