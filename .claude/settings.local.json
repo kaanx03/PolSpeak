@@ -15,7 +15,11 @@
       "Bash(grep -rn \"teacher_files\\\\|student_homework\" c:/Users/PC/Desktop/PolSpeak/*.sql)",
       "Bash(grep -n \"PdfViewer\\\\|import.*Pdf\" c:/Users/PC/Desktop/PolSpeak/src/app/lessons/[level]/[id]/present/page.tsx)",
       "Bash(grep -n \"lightbox\\\\|isImage\\\\|setLightbox\" c:/Users/PC/Desktop/PolSpeak/src/app/student/homework/[id]/page.tsx)",
-      "Bash(grep -n \"hw.grade\\\\|grade\" c:/Users/PC/Desktop/PolSpeak/src/app/student/homework/[id]/page.tsx)"
+      "Bash(grep -n \"hw.grade\\\\|grade\" c:/Users/PC/Desktop/PolSpeak/src/app/student/homework/[id]/page.tsx)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(npm install:*)",
+      "Bash(\"c:\\\\Users\\\\PC\\\\Desktop\\\\PolSpeak\\\\.env.local\")"
     ]
   }
 }

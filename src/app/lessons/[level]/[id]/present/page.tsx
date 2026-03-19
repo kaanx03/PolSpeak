@@ -51,10 +51,9 @@ interface Module {
   content: any;
 }
 
-// Helper function to render text with bold, italic, and underline formatting
-const formatText = (text: string) => {
+// Helper function to render inline formatting (bold, italic, underline)
+const formatInline = (text: string) => {
   if (!text) return null;
-  // Split by bold (**text**), italic (*text*), and underline (__text__)
   return text.split(/(\*\*.*?\*\*|\*[^*]+\*|__.*?__)/g).map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={i}>{part.slice(2, -2)}</strong>;
@@ -66,6 +65,27 @@ const formatText = (text: string) => {
       return <em key={i}>{part.slice(1, -1)}</em>;
     }
     return <span key={i}>{part}</span>;
+  });
+};
+
+// Helper to render text with markdown headings and inline formatting
+const formatText = (text: string) => {
+  if (!text) return null;
+  const lines = text.split("\n");
+  return lines.map((line, i) => {
+    if (line.startsWith("### ")) {
+      return <h3 key={i} className="text-xl font-bold text-slate-800 mt-4 mb-1">{formatInline(line.slice(4))}</h3>;
+    }
+    if (line.startsWith("## ")) {
+      return <h2 key={i} className="text-2xl font-bold text-slate-800 mt-5 mb-2">{formatInline(line.slice(3))}</h2>;
+    }
+    if (line.startsWith("# ")) {
+      return <h1 key={i} className="text-3xl font-bold text-slate-800 mt-6 mb-3">{formatInline(line.slice(2))}</h1>;
+    }
+    if (line === "") {
+      return <br key={i} />;
+    }
+    return <p key={i} className="text-lg text-slate-700 leading-relaxed">{formatInline(line)}</p>;
   });
 };
 
@@ -524,62 +544,70 @@ export default function PresentationPage() {
                         className="prose prose-slate max-w-none rounded-lg p-4"
                         style={{ backgroundColor: module.content.textBgColor || "transparent" }}
                       >
-                        <p className="text-lg text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        <div className="text-lg text-slate-700 leading-relaxed">
                           {formatText(module.content.text || "")}
-                        </p>
+                        </div>
                       </div>
                     )}
 
                     {/* Fill in the Blank Module */}
                     {module.type === "fillblank" && module.content?.sentence && (
                       <div className="space-y-6">
-                        <p className="text-lg text-slate-700 leading-loose">
+                        <div className="flex flex-col gap-6">
                           {(() => {
-                            // Check if using new 1. 2. syntax or old {} syntax
                             const sentence = module.content.sentence;
                             const usesNewSyntax = /\d+\./.test(sentence);
 
                             if (usesNewSyntax) {
-                              // Parse with 1. 2. syntax
-                              const parts = sentence.split(/(\d+\.)/g);
-                              return parts.map((part: string, partIndex: number) => {
-                                const match = part.match(/^(\d+)\.$/);
-                                if (match) {
-                                  const blankIndex = parseInt(match[1]) - 1;
-                                  const userValue = userAnswers[`${module.id}-${blankIndex}`] || "";
-                                  const isCorrect = showAnswers[module.id] && module.content?.answers?.[blankIndex] &&
-                                    userValue.toLowerCase().trim() === module.content.answers[blankIndex].toLowerCase().trim();
-                                  const isWrong = showAnswers[module.id] && userValue && !isCorrect;
-
-                                  return (
-                                    <span key={partIndex} className="inline-flex items-center align-middle">
-                                      <input
-                                        type="text"
-                                        className={`inline-block w-28 mx-1 px-2 py-1 border-b-2 text-center font-medium focus:outline-none transition-colors ${
-                                          isCorrect
-                                            ? "border-green-500 bg-green-50 text-green-700"
-                                            : isWrong
-                                            ? "border-red-500 bg-red-50 text-red-700"
-                                            : "border-blue-400 bg-blue-50 text-slate-700 focus:border-blue-600"
-                                        }`}
-                                        placeholder="..."
-                                        value={userValue}
-                                        onChange={(e) => {
-                                          setUserAnswers(prev => ({
-                                            ...prev,
-                                            [`${module.id}-${blankIndex}`]: e.target.value,
-                                          }));
-                                        }}
-                                      />
-                                      {showAnswers[module.id] && isWrong && (
-                                        <span className="text-green-600 font-medium ml-1 text-sm">
-                                          {module.content.answers[blankIndex]}
-                                        </span>
-                                      )}
-                                    </span>
-                                  );
-                                }
-                                return <span key={partIndex}>{part}</span>;
+                              // Split into lines, render each as its own row
+                              const lines = sentence.split(/\n/).filter((l: string) => l.trim() !== "");
+                              // Count blanks per line to track global blank index
+                              let globalBlankIndex = 0;
+                              return lines.map((line: string, lineIdx: number) => {
+                                const parts = line.split(/(\d+\.)/g);
+                                const lineElements = parts.map((part: string, partIndex: number) => {
+                                  const match = part.match(/^(\d+)\.$/);
+                                  if (match) {
+                                    const blankIndex = globalBlankIndex++;
+                                    const userValue = userAnswers[`${module.id}-${blankIndex}`] || "";
+                                    const isCorrect = showAnswers[module.id] && module.content?.answers?.[blankIndex] &&
+                                      userValue.toLowerCase().trim() === module.content.answers[blankIndex].toLowerCase().trim();
+                                    const isWrong = showAnswers[module.id] && userValue && !isCorrect;
+                                    return (
+                                      <span key={partIndex} className="inline-flex items-center align-middle">
+                                        <input
+                                          type="text"
+                                          className={`inline-block w-28 mx-1 px-2 py-1 border-b-2 text-center font-medium focus:outline-none transition-colors ${
+                                            isCorrect
+                                              ? "border-green-500 bg-green-50 text-green-700"
+                                              : isWrong
+                                              ? "border-red-500 bg-red-50 text-red-700"
+                                              : "border-blue-400 bg-blue-50 text-slate-700 focus:border-blue-600"
+                                          }`}
+                                          placeholder="..."
+                                          value={userValue}
+                                          onChange={(e) => {
+                                            setUserAnswers(prev => ({
+                                              ...prev,
+                                              [`${module.id}-${blankIndex}`]: e.target.value,
+                                            }));
+                                          }}
+                                        />
+                                        {showAnswers[module.id] && isWrong && (
+                                          <span className="text-green-600 font-medium ml-1 text-sm">
+                                            {module.content.answers[blankIndex]}
+                                          </span>
+                                        )}
+                                      </span>
+                                    );
+                                  }
+                                  return <span key={partIndex}>{part}</span>;
+                                });
+                                return (
+                                  <p key={lineIdx} className="text-lg text-slate-700 leading-loose">
+                                    {lineElements}
+                                  </p>
+                                );
                               });
                             } else {
                               // Old {} syntax for backwards compatibility
@@ -623,7 +651,7 @@ export default function PresentationPage() {
                               });
                             }
                           })()}
-                        </p>
+                        </div>
                         {/* Check Answers Button - Bottom */}
                         <button
                           onClick={() => toggleAnswer(module.id)}
@@ -638,7 +666,7 @@ export default function PresentationPage() {
                     {module.type === "quiz" && (
                       <div className="space-y-4">
                         <h3 className="text-lg font-medium text-slate-800 mb-4">
-                          {formatText(module.content.question || "")}
+                          {formatInline(module.content.question || "")}
                         </h3>
 
                         {/* Question Media */}
@@ -726,7 +754,7 @@ export default function PresentationPage() {
                             return (
                               <div key={statement.id} className="flex items-center gap-4 py-3">
                                 <p className="flex-1 text-slate-700">
-                                  {formatText(statement.statement || "")}
+                                  {formatInline(statement.statement || "")}
                                 </p>
 
                                 <div className="flex items-center gap-2">

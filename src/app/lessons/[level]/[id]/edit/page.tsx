@@ -2339,12 +2339,14 @@ export default function LessonEditorPage() {
                             />
                             <input
                               type="text"
-                              value={module.content.answers?.join(", ") || ""}
+                              key={`answers-${module.id}-init`}
+                              defaultValue={module.content.answers?.join(", ") || ""}
                               onChange={(e) =>
                                 updateModuleContent(module.id, {
                                   answers: e.target.value
                                     .split(",")
-                                    .map((s) => s.trim()),
+                                    .map((s) => s.trim())
+                                    .filter((s) => s !== ""),
                                 })
                               }
                               className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
