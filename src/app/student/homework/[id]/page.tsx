@@ -31,6 +31,7 @@ export default function HomeworkDetailPage() {
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [retracting, setRetracting] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,6 +84,28 @@ export default function HomeworkDetailPage() {
 
   const noteChanged = note !== (hw?.student_note || "");
   const canSubmit = hw?.status !== "graded";
+
+  const handleRetract = async () => {
+    if (!hw) return;
+    setRetracting(true);
+    // Delete student files from storage
+    for (const f of hw.student_files || []) {
+      if (f.storagePath) deleteFile(f.storagePath).catch(() => {});
+    }
+    const { data, error } = await supabase
+      .from("student_homework")
+      .update({ status: "pending", submitted_at: null, student_files: [], student_note: null })
+      .eq("id", hw.id)
+      .select()
+      .single();
+    if (!error && data) {
+      setHw(data);
+      setNote("");
+      setRemovedIndices(new Set());
+      setStaged([]);
+    }
+    setRetracting(false);
+  };
   const isSubmitEnabled =
     staged.length > 0 || removedIndices.size > 0 || noteChanged;
 
@@ -210,6 +233,25 @@ export default function HomeworkDetailPage() {
           </div>
         )}
 
+        {/* Teacher links */}
+        {teacherLinks.length > 0 && (
+          <div className="space-y-2">
+            {teacherLinks.map((link, i) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-2xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all group text-sm shadow-sm"
+              >
+                <span className="material-symbols-outlined text-slate-400 group-hover:text-blue-500 text-xl transition-colors">link</span>
+                <span className="text-slate-700 flex-1 truncate font-medium">{link.label}</span>
+                <span className="material-symbols-outlined text-slate-400 text-base">open_in_new</span>
+              </a>
+            ))}
+          </div>
+        )}
+
         {/* Teacher files — presentation style */}
         {teacherFiles.length > 0 && (
           <div className="space-y-5">
@@ -256,24 +298,6 @@ export default function HomeworkDetailPage() {
           </div>
         )}
 
-        {/* Teacher links */}
-        {teacherLinks.length > 0 && (
-          <div className="space-y-2">
-            {teacherLinks.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-2xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all group text-sm shadow-sm"
-              >
-                <span className="material-symbols-outlined text-slate-400 group-hover:text-blue-500 text-xl transition-colors">link</span>
-                <span className="text-slate-700 flex-1 truncate font-medium">{link.label}</span>
-                <span className="material-symbols-outlined text-slate-400 text-base">open_in_new</span>
-              </a>
-            ))}
-          </div>
-        )}
 
         {/* Grade */}
         {hw.grade && (
@@ -314,9 +338,21 @@ export default function HomeworkDetailPage() {
         {/* Editable submission */}
         {canSubmit && (
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-              {studentFiles.length > 0 ? "Your submission" : "Submit homework"}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                {studentFiles.length > 0 ? "Your submission" : "Submit homework"}
+              </p>
+              {hw.status === "submitted" && (
+                <button
+                  onClick={handleRetract}
+                  disabled={retracting}
+                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500 transition-colors disabled:opacity-40"
+                >
+                  <span className="material-symbols-outlined text-sm">undo</span>
+                  {retracting ? "Retracting..." : "Retract submission"}
+                </button>
+              )}
+            </div>
 
             <input
               ref={fileRef}
