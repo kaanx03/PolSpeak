@@ -329,24 +329,6 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               </span>
               <span className={`text-sm ${mounted && pathname === "/teacher/homework" ? "font-bold" : "font-medium"}`}>Homework</span>
             </a>
-            <a
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
-                mounted && pathname === "/teacher/ai"
-                  ? "bg-white/10 text-white shadow-sm ring-1 ring-white/5"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white group"
-              }`}
-              href="/teacher/ai"
-            >
-              <span
-                className={`material-symbols-outlined ${
-                  mounted && pathname === "/teacher/ai" ? "text-indigo-400" : "group-hover:text-white transition-colors"
-                }`}
-                style={mounted && pathname === "/teacher/ai" ? { fontVariationSettings: "'FILL' 1" } : undefined}
-              >
-                auto_awesome
-              </span>
-              <span className={`text-sm ${mounted && pathname === "/teacher/ai" ? "font-bold" : "font-medium"}`}>AI Lesson</span>
-            </a>
           </nav>
         </div>
         <div className="p-4 border-t border-white/5 flex flex-col gap-2">
@@ -521,23 +503,6 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               <span className="text-[10px] font-medium hidden md:block">Homework</span>
             </a>
 
-            {/* AI Lesson */}
-            <a
-              href="/teacher/ai"
-              className={`flex flex-col items-center justify-center gap-1 px-1 md:px-3 py-2 rounded-lg transition-all min-w-[45px] md:min-w-[60px] ${
-                mounted && pathname === "/teacher/ai"
-                  ? "bg-indigo-500/20 text-indigo-300"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <span
-                className="material-symbols-outlined text-[24px]"
-                style={mounted && pathname === "/teacher/ai" ? { fontVariationSettings: "'FILL' 1" } : undefined}
-              >
-                auto_awesome
-              </span>
-              <span className="text-[10px] font-medium hidden md:block">AI</span>
-            </a>
           </div>
         </nav>
       )}
