@@ -1,6 +1,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(60%); }
+  100% { transform: translateX(200%); }
+}
+
 @theme {
   /* Daha derin ve görsele uyumlu modern tonlar */
   --color-navy-dark: #0f172a;

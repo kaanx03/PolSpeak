@@ -389,6 +389,9 @@ export default function LessonEditorPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [sharedStudentIds, setSharedStudentIds] = useState<string[]>([]);
   const [sharingLoading, setSharingLoading] = useState<string | null>(null);
+  const [uploadingItems, setUploadingItems] = useState<Set<string>>(new Set());
+  const setUploading = (key: string, loading: boolean) =>
+    setUploadingItems((prev) => { const next = new Set(prev); loading ? next.add(key) : next.delete(key); return next; });
 
   // Auto-save function - saves immediately after changes
   const autoSave = async () => {
@@ -1229,6 +1232,8 @@ export default function LessonEditorPage() {
     type: "image" | "pdf" | "audio",
     file: File,
   ) => {
+    const uploadKey = `${moduleId}-${type}`;
+    setUploading(uploadKey, true);
     try {
       // Get lesson ID
       const lessonId = actualLessonId || (params.id as string);
@@ -1281,6 +1286,8 @@ export default function LessonEditorPage() {
       showToast("Uploaded successfully!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(uploadKey, false);
     }
   };
 
@@ -1289,34 +1296,24 @@ export default function LessonEditorPage() {
     pairIndex: number,
     file: File,
   ) => {
+    const uploadKey = `${moduleId}-matching-${pairIndex}`;
+    setUploading(uploadKey, true);
     try {
       const lessonId = actualLessonId || (params.id as string);
-
-      // Process file (compress images, validate size)
-      const { processedFile, valid, message } =
-        await processFileForUpload(file);
-
-      if (!valid) {
-        showToast(message || "File too large", "error");
-        return;
-      }
-
-      // Upload to Supabase Storage
-      const { url } = await uploadFile(
-        processedFile,
-        `lessons/${params.level}/${lessonId}`,
-      );
-
+      const { processedFile, valid, message } = await processFileForUpload(file);
+      if (!valid) { showToast(message || "File too large", "error"); return; }
+      const { url } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
       const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.pairs) {
         const newPairs = [...module.content.pairs];
         newPairs[pairIndex].rightImage = url;
         updateModuleContent(moduleId, { pairs: newPairs });
       }
-
       showToast("Uploaded successfully!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(uploadKey, false);
     }
   };
 
@@ -1380,37 +1377,25 @@ export default function LessonEditorPage() {
     itemId: string,
     file: File,
   ) => {
+    const uploadKey = `${moduleId}-audio-${itemId}`;
+    setUploading(uploadKey, true);
     try {
       const lessonId = actualLessonId || (params.id as string);
-
-      // Process file (validate size for audio)
-      const { processedFile, valid, message } =
-        await processFileForUpload(file);
-
-      if (!valid) {
-        showToast(message || "File too large", "error");
-        return;
-      }
-
-      // Upload to Supabase Storage
-      const { url, name } = await uploadFile(
-        processedFile,
-        `lessons/${params.level}/${lessonId}`,
-      );
-
+      const { processedFile, valid, message } = await processFileForUpload(file);
+      if (!valid) { showToast(message || "File too large", "error"); return; }
+      const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
       const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.audioItems) {
         const newItems = module.content.audioItems.map((item) =>
-          item.id === itemId
-            ? { ...item, audioUrl: url, audioName: name }
-            : item,
+          item.id === itemId ? { ...item, audioUrl: url, audioName: name } : item,
         );
         updateModuleContent(moduleId, { audioItems: newItems });
       }
-
       showToast("Uploaded successfully!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(uploadKey, false);
     }
   };
 
@@ -1479,6 +1464,8 @@ export default function LessonEditorPage() {
     itemId: string,
     file: File,
   ) => {
+    const uploadKey = `${moduleId}-image-${itemId}`;
+    setUploading(uploadKey, true);
     try {
       const lessonId = actualLessonId || (params.id as string);
 
@@ -1510,6 +1497,8 @@ export default function LessonEditorPage() {
       showToast("Uploaded successfully!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(uploadKey, false);
     }
   };
 
@@ -1571,17 +1560,13 @@ export default function LessonEditorPage() {
   };
 
   const handleVocabularyImageUpload = async (moduleId: string, itemId: string, file: File) => {
+    const uploadKey = `${moduleId}-vocimg-${itemId}`;
+    setUploading(uploadKey, true);
     try {
       const lessonId = actualLessonId || (params.id as string);
       const { processedFile, valid, message } = await processFileForUpload(file);
-
-      if (!valid) {
-        showToast(message || "File too large", "error");
-        return;
-      }
-
+      if (!valid) { showToast(message || "File too large", "error"); return; }
       const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
-
       const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.vocabularyItems) {
         const newItems = module.content.vocabularyItems.map((item) =>
@@ -1592,21 +1577,19 @@ export default function LessonEditorPage() {
       showToast("Image uploaded!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(uploadKey, false);
     }
   };
 
   const handleVocabularyAudioUpload = async (moduleId: string, itemId: string, file: File) => {
+    const uploadKey = `${moduleId}-vocaud-${itemId}`;
+    setUploading(uploadKey, true);
     try {
       const lessonId = actualLessonId || (params.id as string);
       const { processedFile, valid, message } = await processFileForUpload(file);
-
-      if (!valid) {
-        showToast(message || "File too large", "error");
-        return;
-      }
-
+      if (!valid) { showToast(message || "File too large", "error"); return; }
       const { url, name } = await uploadFile(processedFile, `lessons/${params.level}/${lessonId}`);
-
       const module = modules.find((m) => m.id === moduleId);
       if (module && module.content.vocabularyItems) {
         const newItems = module.content.vocabularyItems.map((item) =>
@@ -1617,6 +1600,8 @@ export default function LessonEditorPage() {
       showToast("Audio uploaded!", "success");
     } catch (error: any) {
       showToast("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(uploadKey, false);
     }
   };
 
@@ -2558,30 +2543,18 @@ export default function LessonEditorPage() {
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
+                                          const uploadKey = `${module.id}-qimg`;
+                                          setUploading(uploadKey, true);
                                           try {
-                                            const lessonId =
-                                              actualLessonId ||
-                                              (params.id as string);
-                                            const { url, name } =
-                                              await uploadFile(
-                                                file,
-                                                `lessons/${params.level}/${lessonId}`,
-                                              );
-                                            updateModuleContent(module.id, {
-                                              questionImageUrl: url,
-                                              questionImageName: name,
-                                            });
-                                            showToast(
-                                              "Uploaded successfully!",
-                                              "success",
-                                            );
+                                            const lessonId = actualLessonId || (params.id as string);
+                                            const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                            updateModuleContent(module.id, { questionImageUrl: url, questionImageName: name });
+                                            showToast("Uploaded successfully!", "success");
                                           } catch (error: any) {
-                                            showToast(
-                                              "Upload failed: " + error.message,
-                                              "error",
-                                            );
+                                            showToast("Upload failed: " + error.message, "error");
                                           } finally {
                                             e.target.value = "";
+                                            setUploading(uploadKey, false);
                                           }
                                         }
                                       }}
@@ -2693,30 +2666,18 @@ export default function LessonEditorPage() {
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
+                                          const uploadKey = `${module.id}-qaudio`;
+                                          setUploading(uploadKey, true);
                                           try {
-                                            const lessonId =
-                                              actualLessonId ||
-                                              (params.id as string);
-                                            const { url, name } =
-                                              await uploadFile(
-                                                file,
-                                                `lessons/${params.level}/${lessonId}`,
-                                              );
-                                            updateModuleContent(module.id, {
-                                              questionAudioUrl: url,
-                                              questionAudioName: name,
-                                            });
-                                            showToast(
-                                              "Uploaded successfully!",
-                                              "success",
-                                            );
+                                            const lessonId = actualLessonId || (params.id as string);
+                                            const { url, name } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                            updateModuleContent(module.id, { questionAudioUrl: url, questionAudioName: name });
+                                            showToast("Uploaded successfully!", "success");
                                           } catch (error: any) {
-                                            showToast(
-                                              "Upload failed: " + error.message,
-                                              "error",
-                                            );
+                                            showToast("Upload failed: " + error.message, "error");
                                           } finally {
                                             e.target.value = "";
+                                            setUploading(uploadKey, false);
                                           }
                                         }
                                       }}
@@ -3439,41 +3400,20 @@ export default function LessonEditorPage() {
                                               type="file"
                                               accept="image/*"
                                               onChange={async (e) => {
-                                                const file =
-                                                  e.target.files?.[0];
+                                                const file = e.target.files?.[0];
                                                 if (file) {
-                                                  const { processedFile } =
-                                                    await processFileForUpload(
-                                                      file,
-                                                    );
-                                                  const lessonId =
-                                                    actualLessonId ||
-                                                    (params.id as string);
-                                                  const { url } =
-                                                    await uploadFile(
-                                                      processedFile,
-                                                      `lessons/${params.level}/${lessonId}`,
-                                                    );
-                                                  if (url) {
-                                                    const newItems =
-                                                      module.content.imageChoiceItems?.map(
-                                                        (i) =>
-                                                          i.id === item.id
-                                                            ? {
-                                                                ...i,
-                                                                imageUrl: url,
-                                                                imageName:
-                                                                  file.name,
-                                                              }
-                                                            : i,
-                                                      ) || [];
-                                                    updateModuleContent(
-                                                      module.id,
-                                                      {
-                                                        imageChoiceItems:
-                                                          newItems,
-                                                      },
-                                                    );
+                                                  const uploadKey = `${module.id}-imgchoice-${item.id}`;
+                                                  setUploading(uploadKey, true);
+                                                  try {
+                                                    const lessonId = actualLessonId || (params.id as string);
+                                                    const { url } = await uploadFile(file, `lessons/${params.level}/${lessonId}`);
+                                                    if (url) {
+                                                      const newItems = module.content.imageChoiceItems?.map((i) => i.id === item.id ? { ...i, imageUrl: url, imageName: file.name } : i) || [];
+                                                      updateModuleContent(module.id, { imageChoiceItems: newItems });
+                                                    }
+                                                  } finally {
+                                                    setUploading(uploadKey, false);
+                                                    e.target.value = "";
                                                   }
                                                 }
                                               }}
@@ -5351,6 +5291,19 @@ export default function LessonEditorPage() {
                 Delete Lesson
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress toast */}
+      {uploadingItems.size > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-4 flex items-center gap-3 min-w-[220px]">
+          <div className="size-9 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+            <div className="size-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-slate-900">Uploading...</span>
+            <span className="text-xs text-slate-500">{uploadingItems.size} file{uploadingItems.size > 1 ? "s" : ""} in progress</span>
           </div>
         </div>
       )}

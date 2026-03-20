@@ -30,8 +30,8 @@ export async function compressImage(
   }
 
   const {
-    maxSizeMB = 1.5, // Target max size: 1.5 MB
-    maxWidthOrHeight = 1920, // Max dimension
+    maxSizeMB = 4, // Target max size: 4 MB
+    maxWidthOrHeight = 1600, // Max dimension
     useWebWorker = true,
     fileType = 'image/webp', // Convert to WebP by default
   } = options;
@@ -47,21 +47,10 @@ export async function compressImage(
       maxWidthOrHeight,
       useWebWorker,
       fileType,
-      initialQuality: 0.9, // Start with 90% quality
+      initialQuality: 0.8,
     };
 
     const compressedFile = await imageCompression(file, compressionOptions);
-
-    // If compressed file is still too large, try again with moderate quality
-    if (compressedFile.size > FILE_SIZE_LIMITS.image) {
-      const secondAttempt = await imageCompression(file, {
-        ...compressionOptions,
-        initialQuality: 0.8,
-        maxWidthOrHeight: 1280,
-      });
-
-      return secondAttempt;
-    }
 
     return compressedFile;
   } catch (error) {
@@ -130,47 +119,11 @@ export async function processFileForUpload(file: File): Promise<{
   valid: boolean;
   message?: string;
 }> {
-  const fileType = getFileTypeCategory(file);
-  const originalSize = file.size;
-
-  // Compress images
-  if (fileType === 'image') {
-    const compressedFile = await compressImage(file);
-    const validation = validateFileSize(compressedFile, 'image');
-
-    return {
-      processedFile: compressedFile,
-      originalSize,
-      compressedSize: compressedFile.size,
-      compressionRatio: ((1 - compressedFile.size / originalSize) * 100),
-      valid: validation.valid,
-      message: validation.message,
-    };
-  }
-
-  // Validate PDFs (skip compression - too heavy for browser)
-  if (fileType === 'pdf') {
-    const validation = validateFileSize(file, 'pdf');
-
-    return {
-      processedFile: file,
-      originalSize,
-      compressedSize: file.size,
-      compressionRatio: 0,
-      valid: validation.valid,
-      message: validation.message,
-    };
-  }
-
-  // Validate audio files
-  const validation = validateFileSize(file, 'audio');
-
   return {
     processedFile: file,
-    originalSize,
+    originalSize: file.size,
     compressedSize: file.size,
     compressionRatio: 0,
-    valid: validation.valid,
-    message: validation.message,
+    valid: true,
   };
 }

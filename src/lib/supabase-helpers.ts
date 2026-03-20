@@ -802,26 +802,38 @@ function sanitizeFileName(fileName: string): string {
 export async function uploadFile(file: File, folder?: string): Promise<{ url: string; name: string; storagePath: string }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("folder", folder || "uploads");
 
-    const response = await fetch("/api/upload", {
+    // Step 1: Get presigned URL from server
+    const presignRes = await fetch("/api/upload-presign", {
       method: "POST",
-      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-      body: formData,
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        folder: folder || "uploads",
+      }),
     });
 
-    if (!response.ok) {
-      throw new Error("Upload failed");
-    }
+    if (!presignRes.ok) throw new Error("Failed to get upload URL");
+    const { presignedUrl, publicUrl, key } = await presignRes.json();
 
-    const data = await response.json();
+    // Step 2: Upload directly to R2 (no server in between)
+    const uploadRes = await fetch(presignedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+
+    if (!uploadRes.ok) throw new Error("Upload to storage failed");
 
     return {
-      url: data.url,
+      url: publicUrl,
       name: file.name,
-      storagePath: data.storagePath,
+      storagePath: key,
     };
   } catch (error) {
     console.error('Upload failed:', error);

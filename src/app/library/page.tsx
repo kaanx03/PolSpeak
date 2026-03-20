@@ -58,6 +58,7 @@ export default function LibraryPage() {
   const [folderToDelete, setFolderToDelete] = useState<LibraryFolder | null>(null);
   const [showMoveToFolderMenu, setShowMoveToFolderMenu] = useState<string | null>(null);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [pendingUploads, setPendingUploads] = useState<{ tempId: string; name: string; type: LibraryFile["type"] }[]>([]);
 
   // Fix hydration mismatch
   useEffect(() => {
@@ -85,8 +86,15 @@ export default function LibraryPage() {
     const uploadedFiles = e.target.files;
     if (!uploadedFiles) return;
 
+    const pending = Array.from(uploadedFiles).map((file) => ({
+      tempId: `temp-${Math.random()}`,
+      name: file.name.replace(/\.[^/.]+$/, ""),
+      type: getFileType(file.type),
+    }));
+    setPendingUploads((prev) => [...prev, ...pending]);
+
     try {
-      const filePromises = Array.from(uploadedFiles).map(async (file) => {
+      const filePromises = Array.from(uploadedFiles).map(async (file, i) => {
         const fileType = getFileType(file.type);
         const fileName = file.name;
 
@@ -110,6 +118,8 @@ export default function LibraryPage() {
           folder_id: targetFolderId || selectedFolderId || null,
         });
 
+        setPendingUploads((prev) => prev.filter((p) => p.tempId !== pending[i].tempId));
+
         return {
           id: libraryFile.id,
           name: libraryFile.name,
@@ -129,6 +139,9 @@ export default function LibraryPage() {
     } catch (error) {
       console.error("Error uploading files:", error);
       alert("Error uploading files. Please try again.");
+      setPendingUploads([]);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -149,8 +162,15 @@ export default function LibraryPage() {
     const droppedFiles = e.dataTransfer.files;
     if (!droppedFiles) return;
 
+    const pending = Array.from(droppedFiles).map((file) => ({
+      tempId: `temp-${Math.random()}`,
+      name: file.name.replace(/\.[^/.]+$/, ""),
+      type: getFileType(file.type),
+    }));
+    setPendingUploads((prev) => [...prev, ...pending]);
+
     try {
-      const filePromises = Array.from(droppedFiles).map(async (file) => {
+      const filePromises = Array.from(droppedFiles).map(async (file, i) => {
         const fileType = getFileType(file.type);
         const fileName = file.name;
 
@@ -174,6 +194,8 @@ export default function LibraryPage() {
           folder_id: selectedFolderId || null,
         });
 
+        setPendingUploads((prev) => prev.filter((p) => p.tempId !== pending[i].tempId));
+
         return {
           id: libraryFile.id,
           name: libraryFile.name,
@@ -193,6 +215,7 @@ export default function LibraryPage() {
     } catch (error) {
       console.error("Error uploading files:", error);
       alert("Error uploading files. Please try again.");
+      setPendingUploads([]);
     }
   };
 
@@ -397,6 +420,29 @@ export default function LibraryPage() {
       default:
         return { icon: "description", bg: "bg-gray-50", hover: "group-hover:bg-gray-100", text: "text-gray-500" };
     }
+  };
+
+  const PendingFileCard = ({ name, type }: { name: string; type: LibraryFile["type"] }) => {
+    const iconData = getFileIcon(type);
+    return (
+      <div className="relative flex flex-col bg-white rounded-xl p-4 border border-indigo-200 shadow-sm">
+        <div className={`flex items-center justify-center h-32 rounded-lg ${iconData.bg} mb-4 overflow-hidden`}>
+          <span className={`material-symbols-outlined text-4xl ${iconData.text} opacity-40`}>{iconData.icon}</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-400">Uploading</span>
+          </div>
+          <h4 className="text-slate-500 font-semibold text-sm leading-tight line-clamp-2">{name}</h4>
+          <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden relative">
+            <div
+              className="absolute top-0 h-full w-1/2 bg-indigo-400 rounded-full"
+              style={{ animation: "loading 1.4s ease-in-out infinite" }}
+            />
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const FileCard = ({ file }: { file: LibraryFile }) => {
@@ -822,7 +868,7 @@ export default function LibraryPage() {
             )}
 
             {/* Section: All Files */}
-            {unpinnedFiles.length > 0 && (
+            {(unpinnedFiles.length > 0 || pendingUploads.length > 0) && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-slate-900">
@@ -831,6 +877,9 @@ export default function LibraryPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {pendingUploads.map((p) => (
+                    <PendingFileCard key={p.tempId} name={p.name} type={p.type} />
+                  ))}
                   {unpinnedFiles.map((file) => (
                     <FileCard key={file.id} file={file} />
                   ))}
