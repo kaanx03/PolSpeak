@@ -26,10 +26,17 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "audio/mpeg",
   "audio/mp3",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/aac",
   "video/mp4",
+  "video/quicktime",
   "application/zip",
+  "application/octet-stream",
 ]);
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB

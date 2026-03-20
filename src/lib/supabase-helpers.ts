@@ -799,9 +799,33 @@ function sanitizeFileName(fileName: string): string {
 }
 
 // Upload file to Cloudflare R2
+function inferMimeType(file: File): string {
+  if (file.type) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    heic: "image/heic",
+    heif: "image/heif",
+    mp3: "audio/mpeg",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    zip: "application/zip",
+  };
+  return map[ext] || "application/octet-stream";
+}
+
 export async function uploadFile(file: File, folder?: string): Promise<{ url: string; name: string; storagePath: string }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
+    const fileType = inferMimeType(file);
 
     // Step 1: Get presigned URL from server
     const presignRes = await fetch("/api/upload-presign", {
@@ -812,7 +836,7 @@ export async function uploadFile(file: File, folder?: string): Promise<{ url: st
       },
       body: JSON.stringify({
         fileName: file.name,
-        fileType: file.type,
+        fileType,
         fileSize: file.size,
         folder: folder || "uploads",
       }),
@@ -824,7 +848,7 @@ export async function uploadFile(file: File, folder?: string): Promise<{ url: st
     // Step 2: Upload directly to R2 (no server in between)
     const uploadRes = await fetch(presignedUrl, {
       method: "PUT",
-      headers: { "Content-Type": file.type },
+      headers: { "Content-Type": fileType },
       body: file,
     });
 
