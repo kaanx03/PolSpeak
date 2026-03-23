@@ -4942,26 +4942,26 @@ export default function LessonEditorPage() {
                           <div className="space-y-3">
                             <div className="space-y-2">
                               <label className="text-sm font-medium text-slate-700">
-                                Sayfa Linki:
+                                Embed Code or URL:
                               </label>
-                              <input
-                                type="text"
+                              <textarea
                                 value={module.content.iframeCode || ""}
                                 onChange={(e) =>
                                   updateModuleContent(module.id, {
                                     iframeCode: e.target.value,
                                   })
                                 }
-                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                placeholder="https://example.com/embed/..."
+                                rows={4}
+                                className="w-full bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono"
+                                placeholder={'<iframe src="https://..." width="100%" height="450" frameborder="0"></iframe>\n\nor just paste a URL:\nhttps://example.com/embed/...'}
                               />
                               <p className="text-xs text-slate-500">
-                                Gömülecek sayfanın linkini yapıştırın
+                                Paste a full &lt;iframe&gt; embed code or just a URL
                               </p>
                             </div>
                             <div className="space-y-2">
                               <label className="text-sm font-medium text-slate-700">
-                                Yükseklik (px):
+                                Height (px):
                               </label>
                               <input
                                 type="number"
@@ -4975,11 +4975,12 @@ export default function LessonEditorPage() {
                                 max={1200}
                                 className="w-32 bg-white rounded border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                               />
+                              <p className="text-xs text-slate-400">Only used when pasting a plain URL (not an iframe code)</p>
                             </div>
                             {module.content.iframeCode && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                                 <p className="text-xs text-green-700 font-medium">
-                                  ✓ Sayfa linki eklendi
+                                  ✓ Embed code added
                                 </p>
                               </div>
                             )}

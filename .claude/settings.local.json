@@ -19,7 +19,9 @@
       "Skill(claude-api)",
       "Skill(claude-api:*)",
       "Bash(npm install:*)",
-      "Bash(\"c:\\\\Users\\\\PC\\\\Desktop\\\\PolSpeak\\\\.env.local\")"
+      "Bash(\"c:\\\\Users\\\\PC\\\\Desktop\\\\PolSpeak\\\\.env.local\")",
+      "Bash(grep -n \"iframe\\\\|embed\\\\|Iframe\\\\|Embed\" src/app/lessons/[level]/[id]/edit/page.tsx)",
+      "Bash(grep -n \"iframe\\\\|addModule\\\\|Add Module\\\\|module_type\" src/app/lessons/[level]/[id]/edit/page.tsx)"
     ]
   }
 }

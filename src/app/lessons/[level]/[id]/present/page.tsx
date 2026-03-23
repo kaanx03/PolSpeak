@@ -1365,15 +1365,45 @@ export default function PresentationPage() {
                     )}
 
                     {/* Iframe / Embed Module */}
-                    {module.type === "iframe" && module.content?.iframeCode && (
-                      <div style={{ height: `${module.content.iframeHeight || 450}px` }} className="w-full overflow-x-hidden overflow-y-auto">
-                        <iframe
-                          src={module.content.iframeCode}
-                          className="w-full h-full rounded-lg border-0"
-                          allowFullScreen
-                        />
-                      </div>
-                    )}
+                    {module.type === "iframe" && module.content?.iframeCode && (() => {
+                      const code = module.content.iframeCode.trim();
+                      const height = module.content.iframeHeight || 450;
+                      // TikTok embed code → convert to iframe URL
+                      const tiktokMatch = code.match(/data-video-id="(\d+)"/);
+                      if (tiktokMatch) {
+                        return (
+                          <div className="w-full flex justify-center">
+                            <iframe
+                              src={`https://www.tiktok.com/embed/v2/${tiktokMatch[1]}`}
+                              className="rounded-lg border-0"
+                              style={{ width: "605px", height: "700px", maxWidth: "100%" }}
+                              allowFullScreen
+                              allow="encrypted-media"
+                            />
+                          </div>
+                        );
+                      }
+                      // Raw HTML embed code (not TikTok)
+                      if (code.startsWith("<")) {
+                        return (
+                          <div
+                            style={{ height: `${height}px` }}
+                            className="w-full [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:rounded-lg [&_iframe]:border-0"
+                            dangerouslySetInnerHTML={{ __html: code }}
+                          />
+                        );
+                      }
+                      // Plain URL
+                      return (
+                        <div style={{ height: `${height}px` }} className="w-full overflow-x-hidden overflow-y-auto">
+                          <iframe
+                            src={code}
+                            className="w-full h-full rounded-lg border-0"
+                            allowFullScreen
+                          />
+                        </div>
+                      );
+                    })()}
 
                     {/* YouTube Video */}
                     {module.type === "youtube" && module.content?.youtubeUrl && (
