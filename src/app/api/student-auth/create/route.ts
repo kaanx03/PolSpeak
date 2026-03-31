@@ -110,13 +110,13 @@ export async function DELETE(req: NextRequest) {
 
     let targetUserId = userId;
 
-    // If no userId provided, look up by email
+    // If no userId provided, look up by email — only delete if role is 'student'
     if (!targetUserId && email) {
       const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
       if (listError) {
         return NextResponse.json({ error: listError.message }, { status: 400 });
       }
-      const found = users.find((u) => u.email === email);
+      const found = users.find((u) => u.email === email && u.user_metadata?.role === 'student');
       if (found) {
         targetUserId = found.id;
       }
