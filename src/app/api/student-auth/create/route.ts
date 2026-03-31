@@ -18,6 +18,46 @@ async function verifyTeacher(req: NextRequest): Promise<boolean> {
   return true;
 }
 
+async function createUserWithUniqueEmail(
+  baseEmail: string,
+  password: string,
+  metadata: Record<string, unknown>
+): Promise<{ data: { user: { id: string } } | null; email: string; error?: string }> {
+  const atIndex = baseEmail.lastIndexOf('@');
+  const localPart = baseEmail.slice(0, atIndex);
+  const domain = baseEmail.slice(atIndex + 1);
+
+  let email = baseEmail;
+  let counter = 2;
+
+  while (counter <= 100) {
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: metadata,
+      email_confirm: true,
+    });
+
+    if (!error && data.user) return { data: { user: { id: data.user.id } }, email };
+
+    const isEmailConflict =
+      error?.message?.toLowerCase().includes('already registered') ||
+      error?.message?.toLowerCase().includes('already been registered') ||
+      error?.message?.toLowerCase().includes('already exists') ||
+      error?.message?.toLowerCase().includes('duplicate');
+
+    if (isEmailConflict) {
+      email = `${localPart}${counter}@${domain}`;
+      counter++;
+      continue;
+    }
+
+    return { data: null, email, error: error?.message || 'Unknown error' };
+  }
+
+  return { data: null, email, error: 'Could not find a unique email after 100 attempts' };
+}
+
 export async function POST(req: NextRequest) {
   if (!(await verifyTeacher(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -33,29 +73,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create auth user with student role
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    const { data, email: finalEmail, error: createError } = await createUserWithUniqueEmail(
       email,
       password,
-      user_metadata: {
+      {
         role: 'student',
         student_id: studentId,
         name: studentName || '',
-      },
-      email_confirm: true,
-    });
+      }
+    );
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (createError || !data) {
+      return NextResponse.json({ error: createError || 'Failed to create user' }, { status: 400 });
     }
 
-    // Link auth user to student record
+    // Link auth user to student record and update email if it changed
     await supabaseAdmin
       .from('students')
-      .update({ user_id: data.user.id })
+      .update({ user_id: data.user.id, email: finalEmail })
       .eq('id', studentId);
 
-    return NextResponse.json({ success: true, userId: data.user.id, email });
+    return NextResponse.json({ success: true, userId: data.user.id, email: finalEmail });
   } catch (err) {
     console.error('Error creating student auth:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -553,10 +553,10 @@ export default function StudentsPage() {
               await loadData();
               setShowAddModal(false);
               if (res.ok) {
-                setCreatedCredentials({ email, password });
+                setCreatedCredentials({ email: result.email || email, password });
               } else {
-                setCreatedCredentials({ email, password });
                 console.error('Auth setup error:', result.error);
+                alert(`Student record created but login account failed: ${result.error}`);
               }
             } catch (error) {
               console.error('Failed to create student:', error);
