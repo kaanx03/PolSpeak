@@ -40,7 +40,7 @@ export default function LandingPage() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        setError("Invalid email or password");
+        setError("Неправильний email або пароль");
         setLoading(false);
         return;
       }
@@ -48,7 +48,7 @@ export default function LandingPage() {
       if (data.user) {
         if (data.user.user_metadata?.role === "student") {
           await supabase.auth.signOut();
-          setError("This account is not a teacher account. Please use Student login.");
+          setError("Цей обліковий запис не є вчительським. Використовуйте вхід для учнів.");
           setLoading(false);
           return;
         }
@@ -80,7 +80,7 @@ export default function LandingPage() {
     setError("");
 
     if (!factorId) {
-      setError("2FA setup error. Please try logging in again.");
+      setError("Помилка налаштування 2FA. Спробуйте увійти знову.");
       setLoading(false);
       return;
     }
@@ -90,7 +90,7 @@ export default function LandingPage() {
         await supabase.auth.mfa.challenge({ factorId });
 
       if (challengeError) {
-        setError("2FA challenge failed. Please try again.");
+        setError("Помилка 2FA. Спробуйте ще раз.");
         setLoading(false);
         return;
       }
@@ -102,7 +102,7 @@ export default function LandingPage() {
       });
 
       if (verifyError) {
-        setError("Invalid verification code");
+        setError("Неправильний код підтвердження");
         setLoading(false);
         return;
       }
@@ -110,7 +110,7 @@ export default function LandingPage() {
       sessionStorage.removeItem("awaiting_2fa");
       router.push("/dashboard");
     } catch {
-      setError("Verification failed. Please try again.");
+      setError("Перевірка не вдалася. Спробуйте ще раз.");
       setLoading(false);
     }
   };
@@ -135,21 +135,21 @@ export default function LandingPage() {
           />
           <div>
             <h1 className="text-white text-2xl font-bold">NastyKnowledge</h1>
-            <p className="text-white/70 text-xs">Learn Polish with Passion</p>
+            <p className="text-white/70 text-xs">Вивчайте польську з пристрастю</p>
           </div>
         </div>
 
         {/* Card */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 sm:p-10 border border-white/20">
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-navy-dark">Welcome back</h2>
-            <p className="text-text-muted text-xs mt-1">Sign in to your teaching dashboard</p>
+            <h2 className="text-xl font-bold text-navy-dark">Ласкаво просимо</h2>
+            <p className="text-text-muted text-xs mt-1">Увійдіть до панелі вчителя</p>
           </div>
 
           {!show2FAInput ? (
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-navy-dark mb-2">Email</label>
+                <label className="block text-sm font-medium text-navy-dark mb-2">Електронна пошта</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <span className="material-symbols-outlined text-slate-400 text-xl">mail</span>
@@ -159,7 +159,7 @@ export default function LandingPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full h-12 pl-12 pr-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-navy-dark focus:border-navy-dark transition-all outline-none"
-                    placeholder="Enter your email"
+                    placeholder="Введіть вашу пошту"
                     required
                     disabled={loading}
                   />
@@ -167,7 +167,7 @@ export default function LandingPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-navy-dark mb-2">Password</label>
+                <label className="block text-sm font-medium text-navy-dark mb-2">Пароль</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <span className="material-symbols-outlined text-slate-400 text-xl">lock</span>
@@ -177,7 +177,7 @@ export default function LandingPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full h-12 pl-12 pr-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-navy-dark focus:border-navy-dark transition-all outline-none"
-                    placeholder="Enter your password"
+                    placeholder="Введіть ваш пароль"
                     required
                     disabled={loading}
                   />
@@ -202,22 +202,22 @@ export default function LandingPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Signing in...
+                    Вхід...
                   </>
                 ) : (
-                  "Sign In"
+                  "Увійти"
                 )}
               </button>
 
               {/* Student login link */}
               <div className="pt-4 border-t border-slate-100 text-center">
-                <p className="text-text-muted text-sm mb-1.5">Are you a student?</p>
+                <p className="text-text-muted text-sm mb-1.5">Ви учень?</p>
                 <Link
                   href="/login/student"
                   className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">person</span>
-                  Sign in as Student
+                  Увійти як учень
                 </Link>
               </div>
             </form>
@@ -227,12 +227,12 @@ export default function LandingPage() {
                 <div className="size-16 rounded-full bg-indigo-100 flex items-center justify-center mx-auto mb-3">
                   <span className="material-symbols-outlined text-indigo-600 text-3xl">shield</span>
                 </div>
-                <h3 className="text-lg font-semibold text-navy-dark mb-1">Two-Factor Authentication</h3>
-                <p className="text-sm text-slate-600">Enter the 6-digit code from your authenticator app</p>
+                <h3 className="text-lg font-semibold text-navy-dark mb-1">Двофакторна автентифікація</h3>
+                <p className="text-sm text-slate-600">Введіть 6-значний код із додатку автентифікатора</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-navy-dark mb-2 text-center">Verification Code</label>
+                <label className="block text-sm font-medium text-navy-dark mb-2 text-center">Код підтвердження</label>
                 <input
                   type="text"
                   value={twoFactorCode}
@@ -265,7 +265,7 @@ export default function LandingPage() {
                   }}
                   className="flex-1 h-12 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all active:scale-[0.98]"
                 >
-                  Back
+                  Назад
                 </button>
                 <button
                   type="submit"
@@ -278,10 +278,10 @@ export default function LandingPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Verifying...
+                      Перевірка...
                     </>
                   ) : (
-                    "Verify"
+                    "Підтвердити"
                   )}
                 </button>
               </div>
@@ -290,7 +290,7 @@ export default function LandingPage() {
         </div>
 
         <p className="text-center text-white/50 text-xs mt-6">
-          © 2025 NastyKnowledge. All rights reserved.
+          © 2025 NastyKnowledge. Всі права захищено.
         </p>
       </div>
     </div>

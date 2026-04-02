@@ -92,8 +92,10 @@ interface Module {
     | "inlinechoice"
     | "youtube"
     | "vocabulary"
-    | "iframe";
+    | "iframe"
+    | "section";
   content: {
+    title?: string; // Section header title
     text?: string;
     textBgColor?: string; // Background color for text module
     sentence?: string;
@@ -824,6 +826,12 @@ export default function LessonEditorPage() {
 
   const moduleTypes = [
     {
+      type: "section",
+      icon: "title",
+      label: "Section Header",
+      color: "bg-slate-100 hover:bg-slate-200 text-slate-700",
+    },
+    {
       type: "text",
       icon: "text_fields",
       label: "Text Content",
@@ -990,7 +998,9 @@ export default function LessonEditorPage() {
                             vocabularyTitle: "Słuchaj i powtarzaj",
                             vocabularyItems: [],
                           }
-                        : {},
+                        : type === "section"
+                          ? { title: "" }
+                          : {},
     };
     setModules([...modules, newModule]);
   };
@@ -5219,6 +5229,24 @@ export default function LessonEditorPage() {
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {/* SECTION HEADER MODULE */}
+                        {module.type === "section" && (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={module.content.title || ""}
+                              onChange={(e) =>
+                                updateModuleContent(module.id, { title: e.target.value })
+                              }
+                              className="w-full h-12 px-4 rounded-lg border border-slate-200 text-xl font-bold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-400 outline-none placeholder-slate-300"
+                              placeholder="Section title..."
+                            />
+                            <p className="text-xs text-slate-400">
+                              Modules below this header will belong to this section.
+                            </p>
                           </div>
                         )}
                       </div>

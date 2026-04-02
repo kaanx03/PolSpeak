@@ -19,6 +19,114 @@ interface Settings {
   };
 }
 
+const translations = {
+  en: {
+    title: "Settings", subtitle: "Manage your profile", signOut: "Sign out",
+    profileSection: "Profile Information", profilePhoto: "Profile Photo",
+    changePhoto: "Change Photo", uploadPhoto: "Upload Photo",
+    photoHint: "JPG, PNG or GIF. Max size 500KB (auto-compressed).",
+    fullName: "Full Name", namePlaceholder: "Enter your name",
+    emailLabel: "Email Address", emailHint: "Email cannot be changed",
+    currentPassword: "Current Password", currentPasswordPlaceholder: "Enter current password to change password",
+    newPassword: "New Password", newPasswordPlaceholder: "Enter new password (leave blank to keep current)",
+    confirmPassword: "Confirm New Password", confirmPasswordPlaceholder: "Confirm new password",
+    twoFactorSection: "Two-Factor Authentication (2FA)", twoFactorSubtitle: "Add an extra layer of security to your account",
+    twoFactorEnabled: "2FA Enabled", twoFactorDisabled: "2FA Disabled",
+    twoFactorEnabledDesc: "Your account is protected with two-factor authentication",
+    twoFactorDisabledDesc: "Enable 2FA to secure your account with an authenticator app",
+    disable: "Disable", enable: "Enable",
+    sessionSection: "Session Management", sessionSubtitle: "Sign out from all devices where you are currently logged in",
+    signOutAllTitle: "Sign Out All Devices", signOutAllDesc: "This will sign you out from all devices including this one. You will need to log in again.",
+    signOutAll: "Sign Out All", languageSubtitle: "Select the interface language",
+    saveChanges: "Save Changes", saving: "Saving...",
+    setup2faTitle: "Set Up 2FA", setup2faSubtitle: "Scan with your authenticator app",
+    setup2faStep1: "1. Download an authenticator app (Google Authenticator, Authy, etc.)",
+    setup2faStep2: "2. Scan this QR code with your app",
+    setup2faStep3: "3. Enter the 6-digit code from your app below",
+    verificationCode: "Verification Code", cancel: "Cancel", verifyAndEnable: "Verify & Enable",
+    disable2faTitle: "Disable 2FA", disable2faSubtitle: "Verify to disable two-factor authentication",
+    disable2faWarning: "Disabling 2FA will make your account less secure. Please enter your current authenticator code to confirm.",
+    disable2fa: "Disable 2FA",
+    signOutAllModalTitle: "Sign Out All Devices?", signOutAllModalSubtitle: "This action will sign you out from all devices",
+    signOutAllWarningTitle: "You will be signed out from this device too",
+    signOutAllWarningDesc: "You will need to log in again on all devices, including this one. Make sure you remember your credentials.",
+    signingOut: "Signing Out...", success: "Settings saved successfully!",
+    errNoCurrentPw: "Please enter your current password", errMismatch: "Passwords do not match",
+    errTooShort: "Password must be at least 6 characters", errIncorrect: "Current password is incorrect",
+    errUpdateFailed: "Failed to update password: ", errSaveFailed: "Failed to save: ",
+  },
+  uk: {
+    title: "Налаштування", subtitle: "Керуйте своїм профілем", signOut: "Вийти",
+    profileSection: "Інформація профілю", profilePhoto: "Фото профілю",
+    changePhoto: "Змінити фото", uploadPhoto: "Завантажити фото",
+    photoHint: "JPG, PNG або GIF. Макс. 500KB (авто-стиснення).",
+    fullName: "Повне ім'я", namePlaceholder: "Введіть ваше ім'я",
+    emailLabel: "Електронна пошта", emailHint: "Електронну пошту не можна змінити",
+    currentPassword: "Поточний пароль", currentPasswordPlaceholder: "Введіть поточний пароль для зміни",
+    newPassword: "Новий пароль", newPasswordPlaceholder: "Новий пароль (залиште порожнім для збереження)",
+    confirmPassword: "Підтвердіть новий пароль", confirmPasswordPlaceholder: "Підтвердіть новий пароль",
+    twoFactorSection: "Двофакторна автентифікація (2FA)", twoFactorSubtitle: "Додайте додатковий рівень захисту",
+    twoFactorEnabled: "2FA увімкнено", twoFactorDisabled: "2FA вимкнено",
+    twoFactorEnabledDesc: "Ваш обліковий запис захищено двофакторною автентифікацією",
+    twoFactorDisabledDesc: "Увімкніть 2FA для захисту облікового запису",
+    disable: "Вимкнути", enable: "Увімкнути",
+    sessionSection: "Управління сесіями", sessionSubtitle: "Вийдіть з усіх пристроїв, де ви зараз авторизовані",
+    signOutAllTitle: "Вийти з усіх пристроїв", signOutAllDesc: "Це призведе до виходу з усіх пристроїв, включно з цим. Вам потрібно буде увійти знову.",
+    signOutAll: "Вийти з усіх", languageSubtitle: "Оберіть мову інтерфейсу",
+    saveChanges: "Зберегти зміни", saving: "Збереження...",
+    setup2faTitle: "Налаштування 2FA", setup2faSubtitle: "Відскануйте за допомогою автентифікатора",
+    setup2faStep1: "1. Завантажте додаток-автентифікатор (Google Authenticator, Authy тощо)",
+    setup2faStep2: "2. Відскануйте цей QR-код своїм додатком",
+    setup2faStep3: "3. Введіть 6-значний код із додатку нижче",
+    verificationCode: "Код підтвердження", cancel: "Скасувати", verifyAndEnable: "Підтвердити та увімкнути",
+    disable2faTitle: "Вимкнути 2FA", disable2faSubtitle: "Підтвердіть вимкнення двофакторної автентифікації",
+    disable2faWarning: "Вимкнення 2FA знижує безпеку вашого облікового запису. Введіть поточний код автентифікатора для підтвердження.",
+    disable2fa: "Вимкнути 2FA",
+    signOutAllModalTitle: "Вийти з усіх пристроїв?", signOutAllModalSubtitle: "Ця дія призведе до виходу з усіх пристроїв",
+    signOutAllWarningTitle: "Ви також вийдете з цього пристрою",
+    signOutAllWarningDesc: "Вам потрібно буде знову увійти на всіх пристроях. Переконайтеся, що пам'ятаєте свої дані.",
+    signingOut: "Вихід...", success: "Налаштування успішно збережено!",
+    errNoCurrentPw: "Будь ласка, введіть поточний пароль", errMismatch: "Паролі не збігаються",
+    errTooShort: "Пароль має містити мінімум 6 символів", errIncorrect: "Поточний пароль невірний",
+    errUpdateFailed: "Не вдалося оновити пароль: ", errSaveFailed: "Не вдалося зберегти: ",
+  },
+  pl: {
+    title: "Ustawienia", subtitle: "Zarządzaj swoim profilem", signOut: "Wyloguj się",
+    profileSection: "Informacje o profilu", profilePhoto: "Zdjęcie profilowe",
+    changePhoto: "Zmień zdjęcie", uploadPhoto: "Prześlij zdjęcie",
+    photoHint: "JPG, PNG lub GIF. Maks. 500KB (auto-kompresja).",
+    fullName: "Imię i nazwisko", namePlaceholder: "Wpisz swoje imię",
+    emailLabel: "Adres e-mail", emailHint: "Adres e-mail nie może być zmieniony",
+    currentPassword: "Aktualne hasło", currentPasswordPlaceholder: "Wpisz aktualne hasło, aby je zmienić",
+    newPassword: "Nowe hasło", newPasswordPlaceholder: "Nowe hasło (zostaw puste, aby zachować obecne)",
+    confirmPassword: "Potwierdź nowe hasło", confirmPasswordPlaceholder: "Potwierdź nowe hasło",
+    twoFactorSection: "Uwierzytelnianie dwuskładnikowe (2FA)", twoFactorSubtitle: "Dodaj dodatkową warstwę zabezpieczeń do swojego konta",
+    twoFactorEnabled: "2FA włączone", twoFactorDisabled: "2FA wyłączone",
+    twoFactorEnabledDesc: "Twoje konto jest chronione uwierzytelnianiem dwuskładnikowym",
+    twoFactorDisabledDesc: "Włącz 2FA, aby zabezpieczyć konto aplikacją uwierzytelniającą",
+    disable: "Wyłącz", enable: "Włącz",
+    sessionSection: "Zarządzanie sesją", sessionSubtitle: "Wyloguj się ze wszystkich urządzeń, na których jesteś zalogowany",
+    signOutAllTitle: "Wyloguj ze wszystkich urządzeń", signOutAllDesc: "Spowoduje to wylogowanie ze wszystkich urządzeń, w tym z tego. Będziesz musiał zalogować się ponownie.",
+    signOutAll: "Wyloguj wszystko", languageSubtitle: "Wybierz język interfejsu",
+    saveChanges: "Zapisz zmiany", saving: "Zapisywanie...",
+    setup2faTitle: "Konfiguracja 2FA", setup2faSubtitle: "Zeskanuj za pomocą aplikacji uwierzytelniającej",
+    setup2faStep1: "1. Pobierz aplikację uwierzytelniającą (Google Authenticator, Authy itp.)",
+    setup2faStep2: "2. Zeskanuj ten kod QR swoją aplikacją",
+    setup2faStep3: "3. Wpisz 6-cyfrowy kod z aplikacji poniżej",
+    verificationCode: "Kod weryfikacyjny", cancel: "Anuluj", verifyAndEnable: "Zweryfikuj i włącz",
+    disable2faTitle: "Wyłącz 2FA", disable2faSubtitle: "Potwierdź wyłączenie uwierzytelniania dwuskładnikowego",
+    disable2faWarning: "Wyłączenie 2FA zmniejszy bezpieczeństwo Twojego konta. Wpisz aktualny kod uwierzytelniający, aby potwierdzić.",
+    disable2fa: "Wyłącz 2FA",
+    signOutAllModalTitle: "Wylogować ze wszystkich urządzeń?", signOutAllModalSubtitle: "Ta akcja wyloguje Cię ze wszystkich urządzeń",
+    signOutAllWarningTitle: "Zostaniesz wylogowany również z tego urządzenia",
+    signOutAllWarningDesc: "Będziesz musiał zalogować się ponownie na wszystkich urządzeniach. Upewnij się, że pamiętasz swoje dane logowania.",
+    signingOut: "Wylogowywanie...", success: "Ustawienia zostały zapisane!",
+    errNoCurrentPw: "Proszę podać aktualne hasło", errMismatch: "Hasła nie są zgodne",
+    errTooShort: "Hasło musi mieć co najmniej 6 znaków", errIncorrect: "Aktualne hasło jest nieprawidłowe",
+    errUpdateFailed: "Nie udało się zaktualizować hasła: ", errSaveFailed: "Nie udało się zapisać: ",
+  },
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>({
@@ -53,6 +161,7 @@ export default function SettingsPage() {
   const [disableVerificationCode, setDisableVerificationCode] = useState("");
   const [showSignOutAllModal, setShowSignOutAllModal] = useState(false);
 
+  const t = translations[settings.language as keyof typeof translations] ?? translations.en;
 
   useEffect(() => {
     loadUserData();
@@ -387,18 +496,16 @@ export default function SettingsPage() {
   const handleSave = async () => {
     // Check password match if user is trying to change password
     if (password || confirmPassword || currentPassword) {
-      // Validate current password is provided
       if (!currentPassword) {
-        setPasswordError("Please enter your current password");
+        setPasswordError(t.errNoCurrentPw);
         return;
       }
-
       if (password !== confirmPassword) {
-        setPasswordError("Passwords do not match");
+        setPasswordError(t.errMismatch);
         return;
       }
       if (password.length < 6) {
-        setPasswordError("Password must be at least 6 characters");
+        setPasswordError(t.errTooShort);
         return;
       }
     }
@@ -422,18 +529,17 @@ export default function SettingsPage() {
         });
 
         if (signInError) {
-          setPasswordError("Current password is incorrect");
+          setPasswordError(t.errIncorrect);
           setIsSaving(false);
           return;
         }
 
-        // If current password is correct, update to new password
         const { error: updateError } = await supabase.auth.updateUser({
           password: password,
         });
 
         if (updateError) {
-          setPasswordError("Failed to update password: " + updateError.message);
+          setPasswordError(t.errUpdateFailed + updateError.message);
           setIsSaving(false);
           return;
         }
@@ -446,7 +552,7 @@ export default function SettingsPage() {
       setConfirmPassword("");
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error: any) {
-      setPasswordError("Failed to save: " + error.message);
+      setPasswordError(t.errSaveFailed + error.message);
       setIsSaving(false);
     }
   };
@@ -459,13 +565,22 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b border-[#e2e8f0]">
           <div className="px-3 md:px-6 py-4 md:py-5">
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-[#1e293b] tracking-tight">
-                Settings
-              </h2>
-              <p className="text-[#64748b] text-xs md:text-sm mt-1 hidden sm:block">
-                Manage your profile
-              </p>
+            <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-[#1e293b] tracking-tight">
+                  {t.title}
+                </h2>
+                <p className="text-[#64748b] text-xs md:text-sm mt-1 hidden sm:block">
+                  {t.subtitle}
+                </p>
+              </div>
+              <button
+                onClick={async () => { await supabase.auth.signOut(); router.push("/"); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-semibold text-sm shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">logout</span>
+                <span className="hidden sm:inline">{t.signOut}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -474,7 +589,7 @@ export default function SettingsPage() {
         {showSuccess && (
           <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-in-right">
             <span className="material-symbols-outlined text-[20px]">check_circle</span>
-            <span className="text-sm font-medium">Settings saved successfully!</span>
+            <span className="text-sm font-medium">{t.success}</span>
           </div>
         )}
 
@@ -483,13 +598,13 @@ export default function SettingsPage() {
           <div className="max-w-4xl mx-auto">
             {/* Profile Section */}
             <div className="bg-white rounded-lg border border-[#e2e8f0] p-6">
-              <h3 className="text-lg font-bold text-[#1e293b] mb-6">Profile Information</h3>
+              <h3 className="text-lg font-bold text-[#1e293b] mb-6">{t.profileSection}</h3>
 
               <div className="flex flex-col gap-6">
                 {/* Profile Photo */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-3">
-                    Profile Photo
+                    {t.profilePhoto}
                   </label>
                   <div className="flex items-center gap-4">
                     {settings.teacherPhoto && settings.teacherPhoto !== "/teacher.jpg" ? (
@@ -518,7 +633,7 @@ export default function SettingsPage() {
                     <div className="flex flex-col gap-2">
                       <label className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer inline-flex items-center gap-2 w-fit">
                         <span className="material-symbols-outlined text-[18px]">upload</span>
-                        {settings.teacherPhoto !== "/teacher.jpg" ? "Change Photo" : "Upload Photo"}
+                        {settings.teacherPhoto !== "/teacher.jpg" ? t.changePhoto : t.uploadPhoto}
                         <input
                           type="file"
                           accept="image/*"
@@ -526,18 +641,14 @@ export default function SettingsPage() {
                           className="hidden"
                         />
                       </label>
-                      <p className="text-xs text-slate-500">
-                        JPG, PNG or GIF. Max size 500KB (auto-compressed).
-                      </p>
+                      <p className="text-xs text-slate-500">{t.photoHint}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Full Name */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Full Name
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label>
                   <input
                     type="text"
                     value={settings.teacherName}
@@ -545,15 +656,13 @@ export default function SettingsPage() {
                       setSettings({ ...settings, teacherName: e.target.value })
                     }
                     className="w-full h-10 px-3 rounded-lg border border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter your name"
+                    placeholder={t.namePlaceholder}
                   />
                 </div>
 
                 {/* Email */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Email Address
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.emailLabel}</label>
                   <input
                     type="email"
                     value={settings.teacherEmail}
@@ -561,16 +670,12 @@ export default function SettingsPage() {
                     className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 cursor-not-allowed"
                     placeholder="your@email.com"
                   />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Email cannot be changed
-                  </p>
+                  <p className="text-xs text-slate-500 mt-1">{t.emailHint}</p>
                 </div>
 
                 {/* Current Password */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Current Password
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label>
                   <input
                     type="password"
                     value={currentPassword}
@@ -579,15 +684,13 @@ export default function SettingsPage() {
                       setPasswordError("");
                     }}
                     className="w-full h-10 px-3 rounded-lg border border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter current password to change password"
+                    placeholder={t.currentPasswordPlaceholder}
                   />
                 </div>
 
                 {/* New Password */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    New Password
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label>
                   <input
                     type="password"
                     value={password}
@@ -596,15 +699,13 @@ export default function SettingsPage() {
                       setPasswordError("");
                     }}
                     className="w-full h-10 px-3 rounded-lg border border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter new password (leave blank to keep current)"
+                    placeholder={t.newPasswordPlaceholder}
                   />
                 </div>
 
                 {/* Confirm Password */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Confirm New Password
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.confirmPassword}</label>
                   <input
                     type="password"
                     value={confirmPassword}
@@ -613,7 +714,7 @@ export default function SettingsPage() {
                       setPasswordError("");
                     }}
                     className="w-full h-10 px-3 rounded-lg border border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Confirm new password"
+                    placeholder={t.confirmPasswordPlaceholder}
                   />
                   {passwordError && (
                     <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -625,12 +726,39 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Language Section */}
+            <div className="mt-6 bg-white rounded-lg border border-[#e2e8f0] p-6">
+              <h3 className="text-lg font-bold text-[#1e293b] mb-2">Language / Мова / Język</h3>
+              <p className="text-sm text-slate-600 mb-4">{t.languageSubtitle}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { code: "en", label: "English", flag: "🇬🇧" },
+                  { code: "uk", label: "Українська", flag: "🇺🇦" },
+                  { code: "pl", label: "Polski", flag: "🇵🇱" },
+                ].map(({ code, label, flag }) => (
+                  <button
+                    key={code}
+                    onClick={() => setSettings({ ...settings, language: code })}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${
+                      settings.language === code
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                        : "border-slate-200 hover:border-slate-300 text-slate-700"
+                    }`}
+                  >
+                    <span className="text-2xl">{flag}</span>
+                    <span className="font-medium text-sm">{label}</span>
+                    {settings.language === code && (
+                      <span className="material-symbols-outlined text-indigo-600 text-base ml-auto">check_circle</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Two-Factor Authentication Section */}
             <div className="mt-6 bg-white rounded-lg border border-[#e2e8f0] p-6">
-              <h3 className="text-lg font-bold text-[#1e293b] mb-2">Two-Factor Authentication (2FA)</h3>
-              <p className="text-sm text-slate-600 mb-6">
-                Add an extra layer of security to your account
-              </p>
+              <h3 className="text-lg font-bold text-[#1e293b] mb-2">{t.twoFactorSection}</h3>
+              <p className="text-sm text-slate-600 mb-6">{t.twoFactorSubtitle}</p>
 
               <div className="flex items-start justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex gap-3">
@@ -641,12 +769,10 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-slate-900">
-                      {twoFactorEnabled ? '2FA Enabled' : '2FA Disabled'}
+                      {twoFactorEnabled ? t.twoFactorEnabled : t.twoFactorDisabled}
                     </h4>
                     <p className="text-xs text-slate-600 mt-1">
-                      {twoFactorEnabled
-                        ? 'Your account is protected with two-factor authentication'
-                        : 'Enable 2FA to secure your account with an authenticator app'}
+                      {twoFactorEnabled ? t.twoFactorEnabledDesc : t.twoFactorDisabledDesc}
                     </p>
                   </div>
                 </div>
@@ -658,7 +784,7 @@ export default function SettingsPage() {
                       : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
                 >
-                  {twoFactorEnabled ? 'Disable' : 'Enable'}
+                  {twoFactorEnabled ? t.disable : t.enable}
                 </button>
               </div>
 
@@ -672,10 +798,8 @@ export default function SettingsPage() {
 
             {/* Session Management Section */}
             <div className="mt-6 bg-white rounded-lg border border-[#e2e8f0] p-6">
-              <h3 className="text-lg font-bold text-[#1e293b] mb-2">Session Management</h3>
-              <p className="text-sm text-slate-600 mb-6">
-                Sign out from all devices where you are currently logged in
-              </p>
+              <h3 className="text-lg font-bold text-[#1e293b] mb-2">{t.sessionSection}</h3>
+              <p className="text-sm text-slate-600 mb-6">{t.sessionSubtitle}</p>
 
               {/* Sign Out All Devices Button */}
               <div className="p-4 bg-red-50 rounded-lg border border-red-200">
@@ -687,12 +811,8 @@ export default function SettingsPage() {
                       </span>
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        Sign Out All Devices
-                      </h4>
-                      <p className="text-xs text-slate-600 mt-1">
-                        This will sign you out from all devices including this one. You will need to log in again.
-                      </p>
+                      <h4 className="text-sm font-semibold text-slate-900">{t.signOutAllTitle}</h4>
+                      <p className="text-xs text-slate-600 mt-1">{t.signOutAllDesc}</p>
                     </div>
                   </div>
                   <button
@@ -700,7 +820,7 @@ export default function SettingsPage() {
                     disabled={isSaving}
                     className="px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
-                    Sign Out All
+                    {t.signOutAll}
                   </button>
                 </div>
               </div>
@@ -715,32 +835,24 @@ export default function SettingsPage() {
                       <span className="material-symbols-outlined text-indigo-600">qr_code_scanner</span>
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold">Set Up 2FA</h3>
-                      <p className="text-sm text-slate-500">Scan with your authenticator app</p>
+                      <h3 className="text-lg font-bold">{t.setup2faTitle}</h3>
+                      <p className="text-sm text-slate-500">{t.setup2faSubtitle}</p>
                     </div>
                   </div>
 
                   <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                    <p className="text-sm text-slate-700 mb-3">
-                      1. Download an authenticator app (Google Authenticator, Authy, etc.)
-                    </p>
-                    <p className="text-sm text-slate-700 mb-3">
-                      2. Scan this QR code with your app
-                    </p>
+                    <p className="text-sm text-slate-700 mb-3">{t.setup2faStep1}</p>
+                    <p className="text-sm text-slate-700 mb-3">{t.setup2faStep2}</p>
                     {qrCodeUrl && (
                       <div className="flex justify-center mb-3 bg-white p-4 rounded-lg">
                         <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
                       </div>
                     )}
-                    <p className="text-sm text-slate-700">
-                      3. Enter the 6-digit code from your app below
-                    </p>
+                    <p className="text-sm text-slate-700">{t.setup2faStep3}</p>
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Verification Code
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">{t.verificationCode}</label>
                     <input
                       type="text"
                       value={verificationCode}
@@ -766,14 +878,14 @@ export default function SettingsPage() {
                       }}
                       className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
                     >
-                      Cancel
+                      {t.cancel}
                     </button>
                     <button
                       onClick={handleVerifyAndEnable2FA}
                       disabled={verificationCode.length !== 6}
                       className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Verify & Enable
+                      {t.verifyAndEnable}
                     </button>
                   </div>
                 </div>
@@ -789,22 +901,20 @@ export default function SettingsPage() {
                       <span className="material-symbols-outlined text-red-600 text-2xl">lock_open</span>
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold">Disable 2FA</h3>
-                      <p className="text-sm text-slate-500">Verify to disable two-factor authentication</p>
+                      <h3 className="text-lg font-bold">{t.disable2faTitle}</h3>
+                      <p className="text-sm text-slate-500">{t.disable2faSubtitle}</p>
                     </div>
                   </div>
 
                   <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-sm text-amber-800">
                       <span className="material-symbols-outlined text-[16px] inline-block mr-1">warning</span>
-                      Disabling 2FA will make your account less secure. Please enter your current authenticator code to confirm.
+                      {t.disable2faWarning}
                     </p>
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Verification Code
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">{t.verificationCode}</label>
                     <input
                       type="text"
                       value={disableVerificationCode}
@@ -831,14 +941,14 @@ export default function SettingsPage() {
                       }}
                       className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
                     >
-                      Cancel
+                      {t.cancel}
                     </button>
                     <button
                       onClick={handleConfirmDisable2FA}
                       disabled={disableVerificationCode.length !== 6}
                       className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Disable 2FA
+                      {t.disable2fa}
                     </button>
                   </div>
                 </div>
@@ -857,12 +967,8 @@ export default function SettingsPage() {
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold text-slate-900">
-                        Sign Out All Devices?
-                      </h3>
-                      <p className="text-sm text-slate-600 mt-1">
-                        This action will sign you out from all devices
-                      </p>
+                      <h3 className="text-xl font-bold text-slate-900">{t.signOutAllModalTitle}</h3>
+                      <p className="text-sm text-slate-600 mt-1">{t.signOutAllModalSubtitle}</p>
                     </div>
                   </div>
 
@@ -873,12 +979,8 @@ export default function SettingsPage() {
                         warning
                       </span>
                       <div>
-                        <p className="text-sm font-medium text-red-900">
-                          You will be signed out from this device too
-                        </p>
-                        <p className="text-xs text-red-700 mt-1">
-                          You will need to log in again on all devices, including this one. Make sure you remember your credentials.
-                        </p>
+                        <p className="text-sm font-medium text-red-900">{t.signOutAllWarningTitle}</p>
+                        <p className="text-xs text-red-700 mt-1">{t.signOutAllWarningDesc}</p>
                       </div>
                     </div>
                   </div>
@@ -890,7 +992,7 @@ export default function SettingsPage() {
                       disabled={isSaving}
                       className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Cancel
+                      {t.cancel}
                     </button>
                     <button
                       onClick={handleSignOutAllDevices}
@@ -900,12 +1002,12 @@ export default function SettingsPage() {
                       {isSaving ? (
                         <>
                           <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
-                          Signing Out...
+                          {t.signingOut}
                         </>
                       ) : (
                         <>
                           <span className="material-symbols-outlined text-[18px]">logout</span>
-                          Sign Out All
+                          {t.signOutAll}
                         </>
                       )}
                     </button>
@@ -924,12 +1026,12 @@ export default function SettingsPage() {
                 {isSaving ? (
                   <>
                     <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
-                    Saving...
+                    {t.saving}
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[18px]">save</span>
-                    Save Changes
+                    {t.saveChanges}
                   </>
                 )}
               </button>

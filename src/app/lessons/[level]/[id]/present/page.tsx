@@ -47,7 +47,7 @@ interface InlineChoiceSentence {
 
 interface Module {
   id: string;
-  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice" | "youtube" | "vocabulary" | "iframe";
+  type: "fillblank" | "pdf" | "image" | "quiz" | "text" | "audio" | "matching" | "wordwall" | "miro" | "quizlet" | "genially" | "baamboozle" | "truefalse" | "imagechoice" | "inlinechoice" | "youtube" | "vocabulary" | "iframe" | "section";
   content: any;
 }
 
@@ -440,50 +440,118 @@ export default function PresentationPage() {
       iframe: "Link",
       youtube: "YouTube Video",
       vocabulary: "Vocabulary Cards",
+      section: "Section Header",
     };
     return names[type] || type;
   };
 
+  // Compute sections from section-type modules
+  const sections = modules.reduce<{ title: string; moduleIndex: number }[]>((acc, module, index) => {
+    if (module.type === "section") {
+      acc.push({ title: module.content?.title || "Section", moduleIndex: index });
+    }
+    return acc;
+  }, []);
+
+  const activeSectionIndex = sections.reduce((active, section, i) => {
+    if (section.moduleIndex <= activeModuleIndex) return i;
+    return active;
+  }, -1);
+
+  const hasSections = sections.length > 0;
+
   return (
     <div className="flex h-screen w-full bg-white">
-      {/* Left Progress Bar - Desktop */}
-      <div className="hidden lg:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
-        {/* Back Button */}
-        <Link
-          href={`/lessons/${params.level}`}
-          className="mx-auto mb-6 size-9 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-        </Link>
-
-        {/* Progress Dots */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          {modules.map((module, index) => (
-            <button
-              key={module.id}
-              onClick={() => scrollToModule(index)}
-              className={`group relative size-2.5 rounded-full transition-all ${
-                index === activeModuleIndex
-                  ? "bg-blue-600 scale-150"
-                  : index < activeModuleIndex
-                  ? "bg-blue-400"
-                  : "bg-slate-300 hover:bg-slate-400"
-              }`}
+      {/* Left Sidebar - Desktop */}
+      {hasSections ? (
+        <div className="hidden lg:flex flex-col w-56 bg-white border-r border-slate-200">
+          {/* Back + Lesson Title */}
+          <div className="px-5 pt-5 pb-3 border-b border-slate-100">
+            <Link
+              href={`/lessons/${params.level}`}
+              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
             >
-              {/* Tooltip */}
-              <span className="absolute left-8 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                {getModuleTypeName(module.type)}
-              </span>
-            </button>
-          ))}
-        </div>
+              <span className="material-symbols-outlined text-[14px]">arrow_back</span>
+              Back
+            </Link>
+            <p className="text-base font-bold text-slate-800 mt-3 leading-snug">{lessonTitle}</p>
+          </div>
 
-        {/* Module Counter */}
-        <div className="mx-auto text-center">
-          <span className="text-xs font-semibold text-blue-600">{activeModuleIndex + 1}</span>
-          <span className="text-xs text-slate-400">/{modules.length}</span>
+          {/* Section List */}
+          <div className="flex-1 overflow-y-auto py-2">
+            {sections.map((section, i) => (
+              <button
+                key={section.moduleIndex}
+                onClick={() => scrollToModule(section.moduleIndex)}
+                className={`relative w-full text-left px-5 py-3 flex items-center gap-3 transition-all ${
+                  i === activeSectionIndex ? "bg-blue-50" : "hover:bg-slate-50"
+                }`}
+              >
+                {/* Dot */}
+                <span className={`flex-shrink-0 size-2.5 rounded-full ${
+                  i === activeSectionIndex ? "bg-blue-600" : "bg-slate-300"
+                }`} />
+                {/* Label */}
+                <span className={`flex-1 text-sm line-clamp-2 ${
+                  i === activeSectionIndex
+                    ? "font-bold text-blue-600"
+                    : "font-normal text-slate-500"
+                }`}>
+                  {section.title || "Untitled"}
+                </span>
+                {/* Active icon */}
+                {i === activeSectionIndex && (
+                  <span className="material-symbols-outlined text-blue-400 text-[18px] flex-shrink-0">
+                    motion_photos_on
+                  </span>
+                )}
+                {/* Active right bar */}
+                {i === activeSectionIndex && (
+                  <div className="absolute right-0 top-1 bottom-1 w-1 bg-blue-600 rounded-l-full" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="hidden lg:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
+          {/* Back Button */}
+          <Link
+            href={`/lessons/${params.level}`}
+            className="mx-auto mb-6 size-9 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </Link>
+
+          {/* Progress Dots */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            {modules.map((module, index) => (
+              <button
+                key={module.id}
+                onClick={() => scrollToModule(index)}
+                className={`group relative size-2.5 rounded-full transition-all ${
+                  index === activeModuleIndex
+                    ? "bg-blue-600 scale-150"
+                    : index < activeModuleIndex
+                    ? "bg-blue-400"
+                    : "bg-slate-300 hover:bg-slate-400"
+                }`}
+              >
+                {/* Tooltip */}
+                <span className="absolute left-8 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  {getModuleTypeName(module.type)}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Module Counter */}
+          <div className="mx-auto text-center">
+            <span className="text-xs font-semibold text-blue-600">{activeModuleIndex + 1}</span>
+            <span className="text-xs text-slate-400">/{modules.length}</span>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -514,22 +582,30 @@ export default function PresentationPage() {
         {/* Scrollable Content */}
         <div ref={contentRef} className="flex-1 overflow-y-auto bg-white">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-            {/* Lesson Title - Desktop only */}
-            <div className="hidden lg:block text-center mb-10">
-              <h1 className="text-2xl font-bold text-slate-800">{lessonTitle}</h1>
-            </div>
-
             {/* All Modules */}
             <div className="space-y-10">
-              {modules.map((module, index) => (
+              {modules.map((module, index) => {
+                const contentIndex = modules.slice(0, index).filter(m => m.type !== "section").length;
+                return (
                 <div
                   key={module.id}
                   ref={(el) => { moduleRefs.current[index] = el; }}
                 >
+                  {module.type === "section" ? (
+                    /* Section Header Divider */
+                    <div className="flex items-center gap-4 pt-2">
+                      <div className="h-px flex-1 bg-slate-200" />
+                      <h2 className="text-2xl font-bold text-slate-700 whitespace-nowrap px-2">
+                        {module.content?.title || "Section"}
+                      </h2>
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
+                  ) : (
+                  <>
                   {/* Module Header */}
                   <div className="flex items-center gap-2 mb-6">
                     <span className="flex items-center justify-center size-7 bg-blue-100 text-blue-600 rounded-full font-semibold text-sm">
-                      {index + 1}
+                      {contentIndex + 1}
                     </span>
                     <span className="text-slate-700 font-semibold">
                       {getModuleTypeName(module.type)}
@@ -1488,8 +1564,11 @@ export default function PresentationPage() {
                       </div>
                     )}
                   </div>
+                  </>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* End of Lesson */}

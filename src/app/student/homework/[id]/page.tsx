@@ -6,12 +6,36 @@ import { supabase } from "@/lib/supabase";
 import { uploadFile, deleteFile, type StudentHomework, type HomeworkFile } from "@/lib/supabase-helpers";
 import PdfViewer from "@/components/PdfViewer";
 
-function getStatusInfo(hw: StudentHomework) {
-  if (hw.status === "graded") return { label: "Graded", cls: "bg-emerald-100 text-emerald-700" };
-  if (hw.status === "submitted") return { label: "Submitted", cls: "bg-blue-100 text-blue-700" };
-  if (hw.due_date && new Date(hw.due_date) < new Date()) return { label: "Overdue", cls: "bg-red-100 text-red-600" };
-  return { label: "Pending", cls: "bg-amber-100 text-amber-700" };
-}
+const hwTranslations = {
+  uk: {
+    statusGraded: "Оцінено", statusSubmitted: "Здано",
+    statusOverdue: "Прострочено", statusPending: "Очікує",
+    notFound: "Домашнє завдання не знайдено.", loadFailed: "Не вдалося завантажити.",
+    goBack: "Повернутися", due: "Здати до",
+    grade: "Оцінка:", yourSubmission: "Ваша відповідь",
+    submitHomework: "Надіслати завдання", note: "Нотатка:",
+    submitted: "Здано", removeQ: "Видалити?", no: "Ні", yes: "Так",
+    notePlaceholder: "Додайте нотатку для вчителя... (необов'язково)",
+    addFiles: "Додати файли", uploading: "Завантаження...",
+    saveChanges: "Зберегти зміни", submit: "Надіслати",
+    retract: "Відкликати", retracting: "Відкликання...",
+    dateLocale: "uk-UA",
+  },
+  pl: {
+    statusGraded: "Ocenione", statusSubmitted: "Oddane",
+    statusOverdue: "Przeterminowane", statusPending: "Oczekuje",
+    notFound: "Nie znaleziono pracy domowej.", loadFailed: "Nie udało się załadować.",
+    goBack: "Wróć", due: "Oddać do",
+    grade: "Ocena:", yourSubmission: "Twoja odpowiedź",
+    submitHomework: "Wyślij zadanie", note: "Notatka:",
+    submitted: "Oddane", removeQ: "Usunąć?", no: "Nie", yes: "Tak",
+    notePlaceholder: "Dodaj notatkę dla nauczyciela... (opcjonalnie)",
+    addFiles: "Dodaj pliki", uploading: "Wysyłanie...",
+    saveChanges: "Zapisz zmiany", submit: "Wyślij",
+    retract: "Cofnij", retracting: "Cofanie...",
+    dateLocale: "pl-PL",
+  },
+};
 
 export default function HomeworkDetailPage() {
   const router = useRouter();
@@ -22,8 +46,8 @@ export default function HomeworkDetailPage() {
   const [studentId, setStudentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState("uk");
 
-  // Submission state
   const fileRef = useRef<HTMLInputElement>(null);
   const [staged, setStaged] = useState<File[]>([]);
   const [removedIndices, setRemovedIndices] = useState<Set<number>>(new Set());
@@ -34,9 +58,16 @@ export default function HomeworkDetailPage() {
   const [retracting, setRetracting] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadHw();
-  }, [hwId]);
+  const t = hwTranslations[language as keyof typeof hwTranslations] ?? hwTranslations.uk;
+
+  useEffect(() => { loadHw(); }, [hwId]);
+
+  const getStatusInfo = (hw: StudentHomework) => {
+    if (hw.status === "graded") return { label: t.statusGraded, cls: "bg-emerald-100 text-emerald-700" };
+    if (hw.status === "submitted") return { label: t.statusSubmitted, cls: "bg-blue-100 text-blue-700" };
+    if (hw.due_date && new Date(hw.due_date) < new Date()) return { label: t.statusOverdue, cls: "bg-red-100 text-red-600" };
+    return { label: t.statusPending, cls: "bg-amber-100 text-amber-700" };
+  };
 
   const loadHw = async () => {
     setLoading(true);
@@ -46,12 +77,13 @@ export default function HomeworkDetailPage() {
 
       const { data: studentRecord } = await supabase
         .from("students")
-        .select("id")
+        .select("id, language")
         .eq("user_id", session.user.id)
         .single();
 
       if (!studentRecord) { router.replace("/"); return; }
       setStudentId(studentRecord.id);
+      if (studentRecord.language) setLanguage(studentRecord.language);
 
       const { data, error: hwError } = await supabase
         .from("student_homework")
@@ -60,11 +92,11 @@ export default function HomeworkDetailPage() {
         .eq("student_id", studentRecord.id)
         .single();
 
-      if (hwError || !data) { setError("Homework not found."); setLoading(false); return; }
+      if (hwError || !data) { setError(t.notFound); setLoading(false); return; }
       setHw(data);
       setNote(data.student_note || "");
     } catch {
-      setError("Failed to load homework.");
+      setError(t.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -88,7 +120,6 @@ export default function HomeworkDetailPage() {
   const handleRetract = async () => {
     if (!hw) return;
     setRetracting(true);
-    // Delete student files from storage
     for (const f of hw.student_files || []) {
       if (f.storagePath) deleteFile(f.storagePath).catch(() => {});
     }
@@ -106,8 +137,8 @@ export default function HomeworkDetailPage() {
     }
     setRetracting(false);
   };
-  const isSubmitEnabled =
-    staged.length > 0 || removedIndices.size > 0 || noteChanged;
+
+  const isSubmitEnabled = hw?.status === "pending" || staged.length > 0 || removedIndices.size > 0 || noteChanged;
 
   const handleSubmit = async () => {
     if (!hw || !studentId) return;
@@ -150,7 +181,7 @@ export default function HomeworkDetailPage() {
       setStaged([]);
       setRemovedIndices(new Set());
     } catch (err: any) {
-      setSubmitError(err.message || "Failed to submit.");
+      setSubmitError(err.message || t.loadFailed);
     } finally {
       setSubmitting(false);
     }
@@ -167,8 +198,8 @@ export default function HomeworkDetailPage() {
   if (error || !hw) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
-        <p className="text-slate-500">{error || "Not found."}</p>
-        <button onClick={() => router.back()} className="text-sm text-navy-dark underline">Go back</button>
+        <p className="text-slate-500">{error || t.notFound}</p>
+        <button onClick={() => router.back()} className="text-sm text-navy-dark underline">{t.goBack}</button>
       </div>
     );
   }
@@ -227,7 +258,7 @@ export default function HomeworkDetailPage() {
             {hw.due_date && (
               <p className="text-xs text-slate-400 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-sm">calendar_today</span>
-                Due: {new Date(hw.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                {t.due}: {new Date(hw.due_date).toLocaleDateString(t.dateLocale, { day: "numeric", month: "long", year: "numeric" })}
               </p>
             )}
           </div>
@@ -252,7 +283,7 @@ export default function HomeworkDetailPage() {
           </div>
         )}
 
-        {/* Teacher files — presentation style */}
+        {/* Teacher files */}
         {teacherFiles.length > 0 && (
           <div className="space-y-5">
             {teacherFiles.map((f, i) => {
@@ -298,11 +329,10 @@ export default function HomeworkDetailPage() {
           </div>
         )}
 
-
         {/* Grade */}
         {hw.grade && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
-            <span className="text-sm font-semibold text-emerald-700 mr-1">Grade:</span>
+            <span className="text-sm font-semibold text-emerald-700 mr-1">{t.grade}</span>
             {[1, 2, 3, 4, 5].map((star) => (
               <span key={star} className={`material-symbols-outlined text-2xl ${parseInt(hw.grade!) >= star ? "text-amber-400" : "text-slate-300"}`}
                 style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -312,16 +342,15 @@ export default function HomeworkDetailPage() {
           </div>
         )}
 
-        {/* Divider before submission */}
         <div className="border-t border-slate-200" />
 
         {/* Graded read-only submission */}
         {!canSubmit && (studentFiles.length > 0 || hw.student_note) && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Your submission</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t.yourSubmission}</p>
             {hw.student_note && (
               <div className="px-4 py-3 bg-blue-50 rounded-2xl border border-blue-200 text-sm text-blue-700 leading-relaxed">
-                <span className="font-semibold block mb-0.5 text-xs">Note:</span>
+                <span className="font-semibold block mb-0.5 text-xs">{t.note}</span>
                 {hw.student_note}
               </div>
             )}
@@ -329,7 +358,7 @@ export default function HomeworkDetailPage() {
               <div key={i} className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 rounded-2xl border border-blue-200 text-sm">
                 <span className="material-symbols-outlined text-blue-500 text-xl">upload_file</span>
                 <span className="text-blue-700 flex-1 truncate font-medium">{f.name}</span>
-                <span className="text-blue-400 text-xs font-medium">Submitted</span>
+                <span className="text-blue-400 text-xs font-medium">{t.submitted}</span>
               </div>
             ))}
           </div>
@@ -340,7 +369,7 @@ export default function HomeworkDetailPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                {studentFiles.length > 0 ? "Your submission" : "Submit homework"}
+                {studentFiles.length > 0 ? t.yourSubmission : t.submitHomework}
               </p>
               {hw.status === "submitted" && (
                 <button
@@ -349,7 +378,7 @@ export default function HomeworkDetailPage() {
                   className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500 transition-colors disabled:opacity-40"
                 >
                   <span className="material-symbols-outlined text-sm">undo</span>
-                  {retracting ? "Retracting..." : "Retract submission"}
+                  {retracting ? t.retracting : t.retract}
                 </button>
               )}
             </div>
@@ -373,9 +402,9 @@ export default function HomeworkDetailPage() {
                   <span className="text-blue-700 flex-1 truncate font-medium">{f.name}</span>
                   {isConfirming ? (
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-red-600 font-semibold text-xs">Remove?</span>
-                      <button onClick={() => setConfirmRemove(null)} className="h-6 px-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50">No</button>
-                      <button onClick={() => markRemoved(i)} className="h-6 px-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold">Yes</button>
+                      <span className="text-red-600 font-semibold text-xs">{t.removeQ}</span>
+                      <button onClick={() => setConfirmRemove(null)} className="h-6 px-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50">{t.no}</button>
+                      <button onClick={() => markRemoved(i)} className="h-6 px-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold">{t.yes}</button>
                     </div>
                   ) : (
                     <button onClick={() => setConfirmRemove(i)} className="text-blue-300 hover:text-red-500 transition-colors shrink-0">
@@ -401,7 +430,7 @@ export default function HomeworkDetailPage() {
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note to your teacher... (optional)"
+              placeholder={t.notePlaceholder}
               rows={3}
               className="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-sm text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-navy-dark outline-none resize-none shadow-sm"
             />
@@ -421,7 +450,7 @@ export default function HomeworkDetailPage() {
                 className="flex items-center gap-1.5 h-12 px-4 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors disabled:opacity-60 border border-slate-200 shadow-sm"
               >
                 <span className="material-symbols-outlined text-base">attach_file</span>
-                Add files
+                {t.addFiles}
               </button>
               <button
                 type="button"
@@ -435,12 +464,12 @@ export default function HomeworkDetailPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Uploading...
+                    {t.uploading}
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-base">send</span>
-                    {studentFiles.length > 0 ? "Save changes" : "Submit"}
+                    {studentFiles.length > 0 ? t.saveChanges : t.submit}
                   </>
                 )}
               </button>
