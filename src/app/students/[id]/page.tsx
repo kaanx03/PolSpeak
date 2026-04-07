@@ -30,6 +30,7 @@ interface Student {
   topicsCovered: string[];
   customTopics: string[];
   payments: Payment[];
+  paymentNotes: string;
   lessonHistory: LessonHistoryEntry[];
 }
 
