@@ -53,7 +53,7 @@ const studentTranslations = {
     navMessages: "Повідомлення", titleMessages: "Повідомлення", subMessages: "Ваші повідомлення з вчителем",
     msgPlaceholder: "Написати повідомлення...", msgSend: "Надіслати",
     msgEmpty: "Немає повідомлень", msgEmptyDesc: "Напишіть своєму вчителю!",
-    paymentReminderText: "Шановний(-а) учню, нагадуємо Вам про необхідність здійснення оплати за заняття. Будь ласка, не зволікайте з оплатою. Дякуємо за Вашу відповідальність та розуміння! 🙏",
+    paymentReminderText: "привіт! 💛 це автоматична напоминалка про оплату абонементу) гарного дня ☺️",
     paymentReminderClose: "Зрозуміло",
   },
   pl: {
@@ -786,8 +786,8 @@ export default function StudentPage() {
 
           {/* Payment Reminder Banner */}
           {paymentReminder && (
-            <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-              <span className="material-symbols-outlined text-amber-500 text-[22px] shrink-0 mt-0.5">payments</span>
+            <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+              <img src="/reminderImage.webp" alt="" className="shrink-0 w-12 h-12 object-contain" />
               <p className="flex-1 text-sm text-amber-800 leading-relaxed">
                 {t.paymentReminderText}
               </p>
