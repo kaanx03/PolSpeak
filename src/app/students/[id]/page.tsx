@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { fetchStudentById, fetchGroupById, fetchGroups, updateStudent, deleteStudent, fetchStudentLessonHistory, fetchStudentHomework, deleteStudentHomework, deleteFile, fetchCurriculumTopics, StudentHomework, Student as DbStudent, Group as DbGroup } from "@/lib/supabase-helpers";
+import { fetchStudentById, fetchGroupById, fetchGroups, updateStudent, deleteStudent, fetchStudentLessonHistory, fetchStudentHomework, deleteStudentHomework, deleteFile, fetchCurriculumTopics, sendPaymentReminder, fetchReminderSchedule, saveReminderSchedule, checkAndSendAutoReminder, StudentHomework, Student as DbStudent, Group as DbGroup, PaymentReminderSchedule } from "@/lib/supabase-helpers";
 import { supabase } from "@/lib/supabase";
 
 interface Student {
@@ -865,6 +865,15 @@ export default function StudentDetailPage() {
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Payment reminder state
+  const [reminderLang, setReminderLang] = useState("uk");
+  const [reminderSending, setReminderSending] = useState(false);
+  const [reminderSent, setReminderSent] = useState(false);
+  const [reminderSchedule, setReminderSchedule] = useState<PaymentReminderSchedule | null>(null);
+  const [scheduleDay, setScheduleDay] = useState(1);
+  const [scheduleActive, setScheduleActive] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+
   useEffect(() => {
     loadData();
   }, [studentId]);
@@ -910,6 +919,8 @@ export default function StudentDetailPage() {
       }));
 
       setStudent(mappedStudent);
+      const studentLang = (studentData as any).language || "uk";
+      setReminderLang(studentLang);
 
       // Load teacher-assigned homework from student_homework table
       const hwData = await fetchStudentHomework(studentId);
@@ -979,6 +990,43 @@ export default function StudentDetailPage() {
     }
   };
 
+  const loadReminderSchedule = async () => {
+    const sched = await fetchReminderSchedule(studentId);
+    if (sched) {
+      setReminderSchedule(sched);
+      setScheduleDay(sched.day_of_month);
+      setScheduleActive(sched.active);
+    }
+    // Also check if auto-reminder should fire today
+    await checkAndSendAutoReminder(studentId);
+  };
+
+  const handleSendReminder = async () => {
+    if (!studentId || reminderSending) return;
+    setReminderSending(true);
+    const ok = await sendPaymentReminder(studentId, reminderLang);
+    setReminderSending(false);
+    if (ok) {
+      setReminderSent(true);
+      setTimeout(() => setReminderSent(false), 3000);
+    }
+  };
+
+  const handleToggleSchedule = async () => {
+    const newActive = !scheduleActive;
+    setScheduleActive(newActive);
+    setScheduleSaving(true);
+    const ok = await saveReminderSchedule(studentId, scheduleDay, reminderLang, newActive);
+    setScheduleSaving(false);
+    if (ok && !newActive) setReminderSchedule(null);
+  };
+
+  const handleScheduleDayChange = async (day: number) => {
+    setScheduleDay(day);
+    if (!scheduleActive) return;
+    await saveReminderSchedule(studentId, day, reminderLang, true);
+  };
+
   const handleDelete = async () => {
     try {
       const studentData = await fetchStudentById(studentId);
@@ -1018,6 +1066,11 @@ export default function StudentDetailPage() {
       alert('Failed to delete student. Please try again.');
     }
   };
+
+  // Load reminder schedule when payments tab activates
+  useEffect(() => {
+    if (activeTab === "payments" && studentId) loadReminderSchedule();
+  }, [activeTab, studentId]);
 
   if (!student) {
     return (
@@ -1589,67 +1642,147 @@ export default function StudentDetailPage() {
 
             {/* Payments Tab */}
             {activeTab === "payments" && (
-              <div className="bg-white rounded-lg border border-slate-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-900">Payment History</h3>
-                  <button
-                    onClick={() => setShowAddPaymentModal(true)}
-                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">add</span>
-                    Add Payment
-                  </button>
-                </div>
-                {student.payments?.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-12">No payments recorded yet</p>
-                ) : (
-                  <div className="space-y-2">
-                    {student.payments
-                      ?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex items-center justify-between p-4 bg-slate-50 rounded-lg"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-semibold text-slate-900">
-                                ${payment.amount.toFixed(2)} {payment.currency}
-                              </p>
-                              <span
-                                className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                  payment.status === "paid"
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : payment.status === "pending"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-red-100 text-red-700"
-                                }`}
-                              >
-                                {payment.status}
-                              </span>
-                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">
-                                {payment.type}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500">{new Date(payment.date).toLocaleDateString()}</p>
-                            {payment.notes && <p className="text-xs text-slate-600 mt-1">{payment.notes}</p>}
-                          </div>
-                          <button
-                            onClick={() => {
-                              const updated = {
-                                ...student,
-                                payments: student.payments.filter((p) => p.id !== payment.id),
-                              };
-                              saveStudent(updated);
-                            }}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">delete</span>
-                          </button>
-                        </div>
-                      ))}
+              <div className="space-y-4">
+
+                {/* Payment Reminder Card */}
+                <div className="bg-white rounded-lg border border-slate-200 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-indigo-500 text-[20px]">notifications</span>
+                    <h3 className="text-base font-bold text-slate-900">Payment Reminder</h3>
                   </div>
-                )}
+
+                  {/* Manual send */}
+                  <div className="flex items-center gap-3 flex-wrap mb-5">
+                    <p className="text-sm text-slate-600 flex-1 min-w-[160px]">
+                      Send a polite payment reminder to {student.name} in their preferred language.
+                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={handleSendReminder}
+                        disabled={reminderSending}
+                        className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {reminderSending ? (
+                          <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        ) : (
+                          <span className="material-symbols-outlined text-[17px]">send</span>
+                        )}
+                        Send Reminder
+                      </button>
+                    </div>
+                  </div>
+                  {reminderSent && (
+                    <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm mb-4">
+                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                      Reminder sent successfully!
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  <div className="border-t border-slate-100 pt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-amber-500 text-[18px]">schedule</span>
+                      <h4 className="text-sm font-semibold text-slate-800">Automate Monthly Reminder</h4>
+                      <button
+                        onClick={handleToggleSchedule}
+                        disabled={scheduleSaving}
+                        className={`ml-auto relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors cursor-pointer disabled:opacity-60 ${
+                          scheduleActive ? "bg-indigo-600" : "bg-slate-200"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${scheduleActive ? "translate-x-4" : "translate-x-0"}`} />
+                      </button>
+                    </div>
+
+                    {scheduleActive && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Day of month</label>
+                        <select
+                          value={scheduleDay}
+                          onChange={(e) => handleScheduleDayChange(Number(e.target.value))}
+                          className="w-48 h-9 px-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        >
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-slate-400 mt-1.5">
+                          Reminder sends automatically on day {scheduleDay} of every month.
+                        </p>
+                        {reminderSchedule?.last_sent_month && (
+                          <p className="text-xs text-slate-400 mt-0.5">Last auto-sent: {reminderSchedule.last_sent_month}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment History Card */}
+                <div className="bg-white rounded-lg border border-slate-200 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-900">Payment History</h3>
+                    <button
+                      onClick={() => setShowAddPaymentModal(true)}
+                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">add</span>
+                      Add Payment
+                    </button>
+                  </div>
+                  {student.payments?.length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-12">No payments recorded yet</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {student.payments
+                        ?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((payment) => (
+                          <div
+                            key={payment.id}
+                            className="flex items-center justify-between p-4 bg-slate-50 rounded-lg"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  ${payment.amount.toFixed(2)} {payment.currency}
+                                </p>
+                                <span
+                                  className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    payment.status === "paid"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : payment.status === "pending"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {payment.status}
+                                </span>
+                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">
+                                  {payment.type}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500">{new Date(payment.date).toLocaleDateString()}</p>
+                              {payment.notes && <p className="text-xs text-slate-600 mt-1">{payment.notes}</p>}
+                            </div>
+                            <button
+                              onClick={() => {
+                                const updated = {
+                                  ...student,
+                                  payments: student.payments.filter((p) => p.id !== payment.id),
+                                };
+                                saveStudent(updated);
+                              }}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">delete</span>
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

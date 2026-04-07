@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -9,10 +9,19 @@ import {
   fetchStudentHomework,
   fetchSharedLessonsForStudent,
   fetchLessonContentById,
+  fetchMessages,
+  sendMessage,
+  markMessagesRead,
+  fetchStudentUnreadCount,
+  fetchActivePaymentReminder,
+  dismissPaymentReminder,
+  fetchSetting,
   type Student,
   type StudentHomework,
   type SharedLesson,
   type LessonContent,
+  type Message,
+  type PaymentReminder,
 } from "@/lib/supabase-helpers";
 
 const studentTranslations = {
@@ -41,6 +50,11 @@ const studentTranslations = {
     pwIncorrect: "Поточний пароль невірний.", pwFailed: "Не вдалося оновити пароль.",
     pwSuccess: "Пароль успішно оновлено!", saving: "Збереження...", updatePw: "Оновити пароль",
     languageLabel: "Мова", languageSubtitle: "Оберіть мову інтерфейсу",
+    navMessages: "Повідомлення", titleMessages: "Повідомлення", subMessages: "Ваші повідомлення з вчителем",
+    msgPlaceholder: "Написати повідомлення...", msgSend: "Надіслати",
+    msgEmpty: "Немає повідомлень", msgEmptyDesc: "Напишіть своєму вчителю!",
+    paymentReminderText: "Шановний(-а) учню, нагадуємо Вам про необхідність здійснення оплати за заняття. Будь ласка, не зволікайте з оплатою. Дякуємо за Вашу відповідальність та розуміння! 🙏",
+    paymentReminderClose: "Зрозуміло",
   },
   pl: {
     portal: "Portal ucznia",
@@ -67,6 +81,11 @@ const studentTranslations = {
     pwIncorrect: "Aktualne hasło jest nieprawidłowe.", pwFailed: "Nie udało się zaktualizować hasła.",
     pwSuccess: "Hasło zostało zaktualizowane!", saving: "Zapisywanie...", updatePw: "Zaktualizuj hasło",
     languageLabel: "Język", languageSubtitle: "Wybierz język interfejsu",
+    navMessages: "Wiadomości", titleMessages: "Wiadomości", subMessages: "Twoje wiadomości z nauczycielem",
+    msgPlaceholder: "Napisz wiadomość...", msgSend: "Wyślij",
+    msgEmpty: "Brak wiadomości", msgEmptyDesc: "Napisz do swojego nauczyciela!",
+    paymentReminderText: "Drogi/a uczniu, uprzejmie przypominamy, że nadszedł czas na dokonanie płatności za lekcje. Prosimy o uregulowanie należności w najbliższym czasie. Dziękujemy za Twoje zaangażowanie i zrozumienie! 🙏",
+    paymentReminderClose: "Rozumiem",
   },
 };
 
@@ -277,13 +296,36 @@ export default function StudentPage() {
   const [homework, setHomework] = useState<StudentHomework[]>([]);
   const [sharedLessons, setSharedLessons] = useState<SharedLessonWithContent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"homework" | "lessons" | "settings">("homework");
+  const [activeTab, setActiveTab] = useState<"homework" | "lessons" | "settings" | "messages">("homework");
   const [language, setLanguageState] = useState("uk");
+  const [liveSession, setLiveSession] = useState<{ id: string; lesson_id: string; lesson_title: string; lesson_level?: string } | null>(null);
+
+  const [teacherName, setTeacherName] = useState("Teacher");
+
+  // Payment reminder state
+  const [paymentReminder, setPaymentReminder] = useState<PaymentReminder | null>(null);
+
+  // Messages state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [msgText, setMsgText] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const [msgUploading, setMsgUploading] = useState(false);
+  const [msgRecording, setMsgRecording] = useState(false);
+  const [msgLoading, setMsgLoading] = useState(false);
+  const [msgUnread, setMsgUnread] = useState(0);
+  const msgEndRef = useRef<HTMLDivElement>(null);
+  const msgFileRef = useRef<HTMLInputElement>(null);
+  const msgMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const msgAudioChunksRef = useRef<Blob[]>([]);
+  const msgChannelRef = useRef<any>(null);
 
   const setLanguage = (lang: string) => {
     setLanguageState(lang);
+    localStorage.setItem("student_language", lang);
     if (studentId) {
-      supabase.from("students").update({ language: lang }).eq("id", studentId);
+      supabase.from("students").update({ language: lang }).eq("id", studentId).then(({ error }) => {
+        if (error) console.warn("Language save to DB failed:", error.message);
+      });
     }
   };
 
@@ -302,12 +344,17 @@ export default function StudentPage() {
       setStudentName(student.name);
       setStudentId(student.id);
       setStudentData(student);
-      setLanguageState((student as any).language || "uk");
+      const savedLang = localStorage.getItem("student_language");
+      setLanguageState(savedLang || (student as any).language || "uk");
 
-      const [hw, shared] = await Promise.all([
+      const [hw, shared, reminder, tName] = await Promise.all([
         fetchStudentHomework(student.id),
         fetchSharedLessonsForStudent(student.id),
+        fetchActivePaymentReminder(student.id),
+        fetchSetting('teacher_name'),
       ]);
+      setPaymentReminder(reminder);
+      if (tName) setTeacherName(tName);
 
       setHomework(hw);
 
@@ -324,6 +371,170 @@ export default function StudentPage() {
       setLoading(false);
     }
   };
+
+  // Load messages when messages tab is opened
+  useEffect(() => {
+    if (!studentId || activeTab !== "messages") return;
+
+    const loadAndSubscribe = async () => {
+      setMsgLoading(true);
+      const msgs = await fetchMessages(studentId);
+      setMessages(msgs);
+      setMsgLoading(false);
+      await markMessagesRead(studentId, "student");
+      setMsgUnread(0);
+    };
+    loadAndSubscribe();
+
+    if (msgChannelRef.current) supabase.removeChannel(msgChannelRef.current);
+    const channel = supabase
+      .channel(`student-messages:${studentId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: `student_id=eq.${studentId}` },
+        async (payload) => {
+          const msg = payload.new as Message;
+          setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
+          if (msg.sender === "teacher") {
+            await markMessagesRead(studentId, "student");
+          }
+        }
+      )
+      .subscribe();
+    msgChannelRef.current = channel;
+
+    return () => {
+      if (msgChannelRef.current) supabase.removeChannel(msgChannelRef.current);
+    };
+  }, [studentId, activeTab]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    msgEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Fetch unread count on load
+  useEffect(() => {
+    if (!studentId) return;
+    fetchStudentUnreadCount(studentId).then(setMsgUnread);
+  }, [studentId]);
+
+  // Subscribe to new payment reminders in realtime
+  useEffect(() => {
+    if (!studentId) return;
+    const ch = supabase
+      .channel(`payment-reminders:${studentId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "payment_reminders", filter: `student_id=eq.${studentId}` },
+        (payload) => {
+          setPaymentReminder(payload.new as PaymentReminder);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [studentId]);
+
+  const uploadMsgFile = async (file: File): Promise<string | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "messages");
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+      body: formData,
+    });
+    if (!res.ok) return null;
+    const { url } = await res.json();
+    return url;
+  };
+
+  const handleSendMsg = async () => {
+    if (!studentId || !msgText.trim() || msgSending) return;
+    const trimmed = msgText.trim();
+    setMsgText("");
+    setMsgSending(true);
+    const msg = await sendMessage(studentId, "student", { text: trimmed });
+    if (msg) setMessages((prev) => [...prev, msg]);
+    setMsgSending(false);
+  };
+
+  const handleMsgFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !studentId) return;
+    setMsgUploading(true);
+    const url = await uploadMsgFile(file);
+    if (url) {
+      const msg = await sendMessage(studentId, "student", { image_url: url });
+      if (msg) setMessages((prev) => [...prev, msg]);
+    }
+    setMsgUploading(false);
+    e.target.value = "";
+  };
+
+  const startMsgRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      msgAudioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (e) => msgAudioChunksRef.current.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (!studentId) return;
+        const blob = new Blob(msgAudioChunksRef.current, { type: "audio/mpeg" });
+        const file = new File([blob], "voice.mp3", { type: "audio/mpeg" });
+        setMsgUploading(true);
+        const url = await uploadMsgFile(file);
+        if (url) {
+          const msg = await sendMessage(studentId, "student", { audio_url: url });
+          if (msg) setMessages((prev) => [...prev, msg]);
+        }
+        setMsgUploading(false);
+      };
+      mr.start();
+      msgMediaRecorderRef.current = mr;
+      setMsgRecording(true);
+    } catch {
+      alert("Microphone access denied.");
+    }
+  };
+
+  const stopMsgRecording = () => {
+    msgMediaRecorderRef.current?.stop();
+    setMsgRecording(false);
+  };
+
+  const checkLiveSession = async (sid: string) => {
+    const { data } = await supabase
+      .from('live_sessions')
+      .select('id, lesson_id, lesson_title')
+      .eq('active', true)
+      .contains('invited_student_ids', [sid])
+      .maybeSingle();
+
+    if (data) {
+      // Fetch lesson level
+      const lesson = await fetchLessonContentById(data.lesson_id);
+      setLiveSession({ ...data, lesson_level: lesson?.level });
+    } else {
+      setLiveSession(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!studentId) return;
+    checkLiveSession(studentId);
+
+    const channel = supabase
+      .channel('live-session-watcher')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, () => {
+        checkLiveSession(studentId);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [studentId]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -382,12 +593,14 @@ export default function StudentPage() {
   const navItems = [
     { tab: "homework" as const, label: t.navHomework, icon: "assignment", badge: pendingCount },
     { tab: "lessons" as const, label: t.navLessons, icon: "menu_book", badge: sharedLessons.length },
+    { tab: "messages" as const, label: t.navMessages, icon: "chat_bubble", badge: msgUnread },
   ];
 
   const pageTitles: Record<string, { title: string; sub: string }> = {
     homework: { title: t.titleHomework, sub: t.subHomework },
     lessons: { title: t.titleLessons, sub: t.subLessons },
     settings: { title: t.titleSettings, sub: t.subSettings },
+    messages: { title: t.titleMessages, sub: t.subMessages },
   };
 
   return (
@@ -450,8 +663,145 @@ export default function StudentPage() {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 overflow-y-auto">
+      <main className={`flex-1 ${activeTab === "messages" ? "overflow-hidden" : "overflow-y-auto"}`}>
+
+        {/* ── Messages Tab (full-height chat) ── */}
+        {activeTab === "messages" && (
+          <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+            {/* Chat header */}
+            <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shrink-0">
+              <div className="size-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {teacherName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">{teacherName}</p>
+              </div>
+            </div>
+
+            {/* Messages area */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2.5">
+              {msgLoading ? (
+                <div className="flex justify-center pt-10">
+                  <div className="size-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                  <span className="material-symbols-outlined text-5xl text-slate-300 mb-2">chat_bubble_outline</span>
+                  <p className="text-slate-400 text-sm font-medium">{t.msgEmpty}</p>
+                  <p className="text-slate-300 text-xs mt-1">{t.msgEmptyDesc}</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isStudent = msg.sender === "student";
+                  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={msg.id} className={`flex items-end gap-1.5 ${isStudent ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm ${isStudent ? "bg-indigo-600 text-white rounded-br-sm" : "bg-white text-slate-800 border border-slate-200 rounded-bl-sm"}`}>
+                        {msg.text && <p className="text-sm leading-relaxed break-words">{msg.text}</p>}
+                        {msg.image_url && (
+                          /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?|$)/i.test(msg.image_url) ? (
+                            <a href={msg.image_url} target="_blank" rel="noopener noreferrer">
+                              <img src={msg.image_url} alt="Image" className="max-w-full rounded-lg mt-1 max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity" />
+                            </a>
+                          ) : (
+                            <a href={msg.image_url} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-2 mt-1 px-3 py-2 rounded-xl border hover:opacity-80 transition-opacity ${isStudent ? "border-indigo-400/50 bg-indigo-500/20" : "border-slate-200 bg-slate-50"}`}>
+                              <span className={`material-symbols-outlined text-[26px] shrink-0 ${isStudent ? "text-indigo-100" : "text-indigo-500"}`}>
+                                {/\.pdf(\?|$)/i.test(msg.image_url) ? "picture_as_pdf" : /\.(doc|docx)(\?|$)/i.test(msg.image_url) ? "description" : /\.(xls|xlsx)(\?|$)/i.test(msg.image_url) ? "table_chart" : /\.(ppt|pptx)(\?|$)/i.test(msg.image_url) ? "slideshow" : /\.zip(\?|$)/i.test(msg.image_url) ? "folder_zip" : "insert_drive_file"}
+                              </span>
+                              <span className={`text-xs font-medium truncate max-w-[140px] ${isStudent ? "text-white" : "text-slate-700"}`}>{decodeURIComponent(msg.image_url.split("/").pop()?.split("?")[0] || "File")}</span>
+                              <span className={`material-symbols-outlined text-[18px] ml-auto shrink-0 ${isStudent ? "text-indigo-200" : "text-slate-400"}`}>download</span>
+                            </a>
+                          )
+                        )}
+                        {msg.audio_url && (
+                          <audio controls className="mt-1 max-w-full" style={{ height: 36 }}>
+                            <source src={msg.audio_url} />
+                          </audio>
+                        )}
+                        <p className={`text-[10px] mt-1 text-right ${isStudent ? "text-indigo-200" : "text-slate-400"}`}>{time}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={msgEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="bg-white border-t border-slate-200 px-4 pt-3 pb-[5.5rem] md:pb-[5.5rem] xl:pb-4 shrink-0">
+              {msgRecording && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+                  <span className="size-2 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-red-600 text-sm font-medium flex-1">Recording...</span>
+                  <button onClick={stopMsgRecording} className="px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition-colors">Stop & Send</button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <button onClick={() => msgFileRef.current?.click()} disabled={msgRecording || msgUploading || msgSending} title="Attach file" className="size-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">attach_file</span>
+                </button>
+                <input ref={msgFileRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" className="hidden" onChange={handleMsgFileChange} />
+                <input type="text" value={msgText} onChange={(e) => setMsgText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSendMsg(); } }} placeholder={t.msgPlaceholder} disabled={msgRecording || msgUploading} className="flex-1 h-10 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition-all disabled:opacity-50" />
+                {msgUploading ? (
+                  <div className="size-10 flex items-center justify-center shrink-0">
+                    <svg className="size-5 animate-spin text-indigo-500" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  </div>
+                ) : msgText.trim() ? (
+                  <button onClick={handleSendMsg} disabled={msgSending} className="size-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 shrink-0">
+                    {msgSending ? <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <span className="material-symbols-outlined text-[20px]">send</span>}
+                  </button>
+                ) : (
+                  <button onClick={msgRecording ? stopMsgRecording : startMsgRecording} disabled={msgSending} className={`size-10 flex items-center justify-center rounded-xl transition-colors disabled:opacity-40 shrink-0 ${msgRecording ? "bg-red-500 text-white hover:bg-red-600" : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"}`}>
+                    <span className="material-symbols-outlined text-[22px]">{msgRecording ? "stop" : "mic"}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Other Tabs ── */}
+        {activeTab !== "messages" && (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 xl:pb-8">
+
+          {/* Live Session Banner */}
+          {liveSession && (
+            <div className="mb-5 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="size-3 bg-red-500 rounded-full animate-pulse shrink-0" />
+                <div>
+                  <p className="font-bold text-red-700 text-sm">Your teacher started a live lesson!</p>
+                  <p className="text-red-500 text-xs mt-0.5">{liveSession.lesson_title || 'Lesson'}</p>
+                </div>
+              </div>
+              <a
+                href={`/lessons/${liveSession.lesson_level || 'a1'}/${liveSession.lesson_id}/present?session=${liveSession.id}`}
+                className="shrink-0 flex items-center gap-1.5 px-4 h-9 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">sensors</span>
+                Join
+              </a>
+            </div>
+          )}
+
+          {/* Payment Reminder Banner */}
+          {paymentReminder && (
+            <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-500 text-[22px] shrink-0 mt-0.5">payments</span>
+              <p className="flex-1 text-sm text-amber-800 leading-relaxed">
+                {t.paymentReminderText}
+              </p>
+              <button
+                onClick={async () => {
+                  await dismissPaymentReminder(paymentReminder.id);
+                  setPaymentReminder(null);
+                }}
+                className="shrink-0 h-8 px-3 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-800 text-xs font-semibold transition-colors whitespace-nowrap"
+              >
+                {t.paymentReminderClose}
+              </button>
+            </div>
+          )}
 
           {/* Page header */}
           <div className="flex flex-col wide:flex-row wide:items-center wide:justify-between gap-3 mb-6 wide:mb-8">
@@ -582,6 +932,7 @@ export default function StudentPage() {
           </div>
         )}
         </div>
+        )}
       </main>
 
       {/* ── Bottom nav ── mobile */}

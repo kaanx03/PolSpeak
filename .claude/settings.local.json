@@ -22,7 +22,10 @@
       "Bash(\"c:\\\\Users\\\\PC\\\\Desktop\\\\PolSpeak\\\\.env.local\")",
       "Bash(grep -n \"iframe\\\\|embed\\\\|Iframe\\\\|Embed\" src/app/lessons/[level]/[id]/edit/page.tsx)",
       "Bash(grep -n \"iframe\\\\|addModule\\\\|Add Module\\\\|module_type\" src/app/lessons/[level]/[id]/edit/page.tsx)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(grep -l \"fetchStudentByUserId\\\\|fetchStudentHomework\\\\|student\" /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx /c/Users/PC/Desktop/files/PolSpeak/src/app/*/*/page.tsx)",
+      "Bash(grep -L \"student\" /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)",
+      "Bash(ls -1 /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)"
     ]
   }
 }

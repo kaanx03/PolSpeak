@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { fetchLessonContentById } from "@/lib/supabase-helpers";
+import { supabase } from "@/lib/supabase";
 import PdfViewer from "@/components/PdfViewer";
 import WaveformPlayer from "@/components/WaveformPlayer";
 
@@ -91,11 +92,27 @@ const formatText = (text: string) => {
 
 export default function PresentationPage() {
   const params = useParams();
+  const router = useRouter();
   const [lessonTitle, setLessonTitle] = useState("Loading...");
   const [modules, setModules] = useState<Module[]>([]);
   const [activeModuleIndex, setActiveModuleIndex] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const moduleRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Live session state
+  const [userRole, setUserRole] = useState<'teacher' | 'student' | null>(null);
+  const [isLive, setIsLive] = useState(false);
+  const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
+  const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
+  const [allStudents, setAllStudents] = useState<{ id: string; name: string; initials: string }[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const liveChannelRef = useRef<any>(null);
+  const suppressBroadcastRef = useRef(false);
+  // Refs for cleanup (state not accessible in unmount closure)
+  const liveSessionIdRef = useRef<string | null>(null);
+  const userRoleRef = useRef<'teacher' | 'student' | null>(null);
+  const [studentAnswersLive, setStudentAnswersLive] = useState<{ [studentId: string]: { name: string; answers: { [key: string]: any } } }>({});
+  const [studentInfo, setStudentInfo] = useState<{ id: string; name: string } | null>(null);
 
   // Load lesson from Supabase
   useEffect(() => {
@@ -260,6 +277,7 @@ export default function PresentationPage() {
           selectedRight: null,
         }
       }));
+      broadcastInteraction({ kind: 'matching_match', moduleId, originalIndex: leftItem.originalIndex });
     } else {
       setMatchingStates(prev => ({ ...prev, [moduleId]: currentState }));
       setTimeout(() => {
@@ -276,10 +294,25 @@ export default function PresentationPage() {
     if (isQuiz) {
       setShowAnswers(prev => ({ ...prev, [moduleId]: true }));
     }
+    broadcastInteraction({ kind: 'quiz', key: moduleId, value, moduleId });
   };
 
   const toggleAnswer = (moduleId: string) => {
-    setShowAnswers(prev => ({ ...prev, [moduleId]: !prev[moduleId] }));
+    setShowAnswers(prev => {
+      const next = !prev[moduleId];
+      broadcastInteraction({ kind: 'show_answers', moduleId, value: next });
+      return { ...prev, [moduleId]: next };
+    });
+  };
+
+  const broadcastInteraction = (payload: Record<string, any>) => {
+    if (isLive && liveChannelRef.current && !suppressBroadcastRef.current) {
+      liveChannelRef.current.send({
+        type: 'broadcast',
+        event: 'student_interaction',
+        payload: { studentId: studentInfo?.id, studentName: studentInfo?.name, ...payload },
+      });
+    }
   };
 
   const toggleAudio = (audioUrl: string) => {
@@ -312,20 +345,11 @@ export default function PresentationPage() {
     setCurrentAudioUrl(audioUrl);
     setIsAudioPlaying(true);
 
-    // Handle metadata loaded (duration)
-    audio.onloadedmetadata = () => {
-      setAudioDuration(audio.duration);
-    };
-
-    // Handle time update (progress)
+    audio.onloadedmetadata = () => { setAudioDuration(audio.duration); };
     audio.ontimeupdate = () => {
       setAudioCurrentTime(audio.currentTime);
-      if (audio.duration) {
-        setAudioProgress((audio.currentTime / audio.duration) * 100);
-      }
+      if (audio.duration) setAudioProgress((audio.currentTime / audio.duration) * 100);
     };
-
-    // Handle when audio ends
     audio.onended = () => {
       setIsAudioPlaying(false);
       setAudioProgress(0);
@@ -354,8 +378,279 @@ export default function PresentationPage() {
   const scrollToModule = (index: number) => {
     const ref = moduleRefs.current[index];
     if (ref && contentRef.current) {
-      ref.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const containerTop = contentRef.current.getBoundingClientRect().top;
+      const elemTop = ref.getBoundingClientRect().top;
+      const target = contentRef.current.scrollTop + (elemTop - containerTop);
+      contentRef.current.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
     }
+  };
+
+  // Auth init + live session detection
+  useEffect(() => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const role = session.user.user_metadata?.role;
+      const isStudent = role === 'student';
+      const resolvedRole = isStudent ? 'student' : 'teacher';
+      setUserRole(resolvedRole);
+      userRoleRef.current = resolvedRole;
+
+      if (isStudent) {
+        const { data: student } = await supabase
+          .from('students')
+          .select('id, name')
+          .eq('user_id', session.user.id)
+          .single();
+        if (student) setStudentInfo(student);
+
+        const sessionId = new URLSearchParams(window.location.search).get('session');
+        if (sessionId) {
+          setLiveSessionId(sessionId);
+          liveSessionIdRef.current = sessionId;
+          setIsLive(true);
+          subscribeAsStudent(sessionId);
+        }
+      } else {
+        // Fetch students list
+        const { data: students } = await supabase
+          .from('students')
+          .select('id, name, initials')
+          .eq('status', 'active')
+          .order('name');
+        if (students) setAllStudents(students);
+
+        // Restore active session if teacher refreshed mid-session
+        const { data: activeSession } = await supabase
+          .from('live_sessions')
+          .select('id')
+          .eq('lesson_id', params.id as string)
+          .eq('active', true)
+          .maybeSingle();
+        if (activeSession) {
+          setLiveSessionId(activeSession.id);
+          liveSessionIdRef.current = activeSession.id;
+          setIsLive(true);
+          subscribeAsTeacher(activeSession.id);
+        }
+      }
+    };
+    init();
+    return () => {
+      // Clean up channel
+      if (liveChannelRef.current) supabase.removeChannel(liveChannelRef.current);
+      // If teacher leaves page while live, deactivate session in DB
+      if (userRoleRef.current === 'teacher' && liveSessionIdRef.current) {
+        supabase.from('live_sessions').delete().eq('id', liveSessionIdRef.current);
+      }
+    };
+  }, []);
+
+
+  const subscribeAsTeacher = (sessionId: string) => {
+    const channel = supabase.channel(`live:${sessionId}`)
+      .on('broadcast', { event: 'student_interaction' }, ({ payload }) => {
+        suppressBroadcastRef.current = true;
+        const { kind, studentId, studentName } = payload;
+
+        if (kind === 'fill_blank' || kind === 'quiz') {
+          setUserAnswers(prev => ({ ...prev, [payload.key]: payload.value }));
+          setStudentAnswersLive(prev => ({
+            ...prev,
+            [studentId]: {
+              name: studentName,
+              answers: { ...(prev[studentId]?.answers || {}), [payload.key]: payload.value },
+            },
+          }));
+        } else if (kind === 'truefalse') {
+          setTrueFalseStates(prev => ({
+            ...prev,
+            [payload.moduleId]: {
+              ...prev[payload.moduleId] || { showResults: false },
+              answers: { ...(prev[payload.moduleId]?.answers || {}), [payload.statementId]: payload.value },
+            },
+          }));
+        } else if (kind === 'imagechoice') {
+          setImageChoiceStates(prev => ({
+            ...prev,
+            [payload.moduleId]: {
+              ...prev[payload.moduleId] || { shuffledOptions: {}, showResults: false },
+              selections: { ...(prev[payload.moduleId]?.selections || {}), [payload.itemId]: payload.value },
+            },
+          }));
+        } else if (kind === 'inlinechoice') {
+          setInlineChoiceStates(prev => ({
+            ...prev,
+            [payload.moduleId]: {
+              ...prev[payload.moduleId] || { shuffledOptions: {}, showResults: false },
+              selections: {
+                ...(prev[payload.moduleId]?.selections || {}),
+                [payload.sentenceId]: {
+                  ...(prev[payload.moduleId]?.selections?.[payload.sentenceId] || {}),
+                  [payload.blankIndex]: payload.value,
+                },
+              },
+            },
+          }));
+        } else if (kind === 'matching_match') {
+          setMatchingStates(prev => {
+            const mod = prev[payload.moduleId];
+            if (!mod) return prev;
+            const newMatched = new Set(mod.matchedPairs);
+            newMatched.add(`${payload.originalIndex}`);
+            return { ...prev, [payload.moduleId]: { ...mod, matchedPairs: newMatched, selectedLeft: null, selectedRight: null } };
+          });
+        } else if (kind === 'show_answers') {
+          setShowAnswers(prev => ({ ...prev, [payload.moduleId]: payload.value }));
+        } else if (kind === 'show_results') {
+          if (payload.stateType === 'truefalse') {
+            setTrueFalseStates(prev => ({
+              ...prev,
+              [payload.moduleId]: { ...prev[payload.moduleId] || { answers: {} }, showResults: payload.value },
+            }));
+          } else if (payload.stateType === 'imagechoice') {
+            setImageChoiceStates(prev => ({
+              ...prev,
+              [payload.moduleId]: { ...prev[payload.moduleId] || { selections: {}, shuffledOptions: {} }, showResults: payload.value },
+            }));
+          } else if (payload.stateType === 'inlinechoice') {
+            setInlineChoiceStates(prev => ({
+              ...prev,
+              [payload.moduleId]: { ...prev[payload.moduleId] || { selections: {}, shuffledOptions: {} }, showResults: payload.value },
+            }));
+          }
+        }
+        setTimeout(() => { suppressBroadcastRef.current = false; }, 100);
+      })
+      .subscribe();
+    liveChannelRef.current = channel;
+  };
+
+  const subscribeAsStudent = (sessionId: string) => {
+    const channel = supabase.channel(`live:${sessionId}`)
+      .on('broadcast', { event: 'student_interaction' }, ({ payload }) => {
+        suppressBroadcastRef.current = true;
+        const { kind } = payload;
+        if (kind === 'fill_blank' || kind === 'quiz') {
+          setUserAnswers(prev => ({ ...prev, [payload.key]: payload.value }));
+        } else if (kind === 'truefalse') {
+          setTrueFalseStates(prev => ({
+            ...prev,
+            [payload.moduleId]: {
+              ...prev[payload.moduleId] || { showResults: false },
+              answers: { ...(prev[payload.moduleId]?.answers || {}), [payload.statementId]: payload.value },
+            },
+          }));
+        } else if (kind === 'imagechoice') {
+          setImageChoiceStates(prev => ({
+            ...prev,
+            [payload.moduleId]: {
+              ...prev[payload.moduleId] || { shuffledOptions: {}, showResults: false },
+              selections: { ...(prev[payload.moduleId]?.selections || {}), [payload.itemId]: payload.value },
+            },
+          }));
+        } else if (kind === 'inlinechoice') {
+          setInlineChoiceStates(prev => ({
+            ...prev,
+            [payload.moduleId]: {
+              ...prev[payload.moduleId] || { shuffledOptions: {}, showResults: false },
+              selections: {
+                ...(prev[payload.moduleId]?.selections || {}),
+                [payload.sentenceId]: {
+                  ...(prev[payload.moduleId]?.selections?.[payload.sentenceId] || {}),
+                  [payload.blankIndex]: payload.value,
+                },
+              },
+            },
+          }));
+        } else if (kind === 'matching_match') {
+          setMatchingStates(prev => {
+            const mod = prev[payload.moduleId];
+            if (!mod) return prev;
+            const newMatched = new Set(mod.matchedPairs);
+            newMatched.add(`${payload.originalIndex}`);
+            return { ...prev, [payload.moduleId]: { ...mod, matchedPairs: newMatched, selectedLeft: null, selectedRight: null } };
+          });
+        } else if (kind === 'show_answers') {
+          setShowAnswers(prev => ({ ...prev, [payload.moduleId]: payload.value }));
+        } else if (kind === 'show_results') {
+          if (payload.stateType === 'truefalse') {
+            setTrueFalseStates(prev => ({
+              ...prev,
+              [payload.moduleId]: { ...prev[payload.moduleId] || { answers: {} }, showResults: payload.value },
+            }));
+          } else if (payload.stateType === 'imagechoice') {
+            setImageChoiceStates(prev => ({
+              ...prev,
+              [payload.moduleId]: { ...prev[payload.moduleId] || { selections: {}, shuffledOptions: {} }, showResults: payload.value },
+            }));
+          } else if (payload.stateType === 'inlinechoice') {
+            setInlineChoiceStates(prev => ({
+              ...prev,
+              [payload.moduleId]: { ...prev[payload.moduleId] || { selections: {}, shuffledOptions: {} }, showResults: payload.value },
+            }));
+          }
+        }
+        setTimeout(() => { suppressBroadcastRef.current = false; }, 100);
+      })
+      .on('broadcast', { event: 'session_end' }, () => {
+        setIsLive(false);
+        setLiveSessionId(null);
+        if (liveChannelRef.current) {
+          supabase.removeChannel(liveChannelRef.current);
+          liveChannelRef.current = null;
+        }
+        router.push('/student');
+      })
+      .subscribe();
+    liveChannelRef.current = channel;
+  };
+
+  const startLiveSession = async () => {
+    if (selectedStudentIds.length === 0) return;
+    const { data } = await supabase
+      .from('live_sessions')
+      .insert({
+        lesson_id: params.id as string,
+        lesson_title: lessonTitle,
+        invited_student_ids: selectedStudentIds,
+        active: true,
+      })
+      .select()
+      .single();
+    if (data) {
+      setLiveSessionId(data.id);
+      liveSessionIdRef.current = data.id;
+      setIsLive(true);
+      setIsGoLiveOpen(false);
+      setSelectedStudentIds([]);
+      subscribeAsTeacher(data.id);
+    }
+  };
+
+  const endLiveSession = async () => {
+    const sessionId = liveSessionIdRef.current;
+    if (!sessionId) return;
+
+    // 1. Delete session from DB
+    await supabase.from('live_sessions').delete().eq('id', sessionId);
+
+    // 2. Broadcast session_end then remove channel after short delay
+    if (liveChannelRef.current) {
+      liveChannelRef.current.send({ type: 'broadcast', event: 'session_end', payload: {} });
+      setTimeout(() => {
+        if (liveChannelRef.current) {
+          supabase.removeChannel(liveChannelRef.current);
+          liveChannelRef.current = null;
+        }
+      }, 500);
+    }
+
+    // 3. Reset state
+    liveSessionIdRef.current = null;
+    setIsLive(false);
+    setLiveSessionId(null);
+    setStudentAnswersLive({});
   };
 
   // Image Choice state - per module
@@ -462,19 +757,16 @@ export default function PresentationPage() {
 
   return (
     <div className="flex h-screen w-full bg-white">
-      {/* Left Sidebar - Desktop */}
+      {/* Left Sidebar - Tablet & Desktop */}
       {hasSections ? (
-        <div className="hidden lg:flex flex-col w-56 bg-white border-r border-slate-200">
-          {/* Back + Lesson Title */}
-          <div className="px-5 pt-5 pb-3 border-b border-slate-100">
-            <Link
-              href={`/lessons/${params.level}`}
-              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[14px]">arrow_back</span>
-              Back
-            </Link>
-            <p className="text-base font-bold text-slate-800 mt-3 leading-snug">{lessonTitle}</p>
+        <div className="hidden md:flex flex-col w-56 bg-white border-r border-slate-200">
+          {/* Logo + Back + Lesson Title */}
+          <div className="px-5 pt-5 pb-3 border-b border-slate-100 flex flex-col items-center text-center">
+            <span className="text-lg font-bold mb-3 flex items-center gap-1.5 tracking-tight">
+              <span className="material-symbols-outlined text-blue-600 text-[22px]">auto_stories</span>
+              <span className="text-slate-800">Nasty</span><span className="text-blue-600">Knowledge</span>
+            </span>
+            <p className="text-base font-bold text-slate-800 leading-snug">{lessonTitle}</p>
           </div>
 
           {/* Section List */}
@@ -512,9 +804,51 @@ export default function PresentationPage() {
               </button>
             ))}
           </div>
+
+          {/* Bottom actions */}
+          <div className="px-5 py-4 border-t border-slate-100 flex flex-col items-center gap-2">
+            {/* Go Live / End Live button - teacher only */}
+            {userRole === 'teacher' && (
+              isLive ? (
+                <button
+                  onClick={endLiveSession}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-red-500 bg-red-500 text-white text-sm font-semibold transition-colors hover:bg-red-600"
+                >
+                  <span className="size-2 bg-white rounded-full animate-pulse" />
+                  Live — End
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsGoLiveOpen(true)}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-red-500 text-red-500 text-sm font-semibold transition-colors hover:bg-red-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">sensors</span>
+                  Go Live
+                </button>
+              )
+            )}
+            {/* Student live indicator */}
+            {userRole === 'student' && isLive && (
+              <div className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                <span className="size-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-red-600 text-xs font-semibold">Live lesson</span>
+              </div>
+            )}
+            {/* Finish Lesson */}
+            <button
+              onClick={async () => {
+                if (isLive && userRole === 'teacher') await endLiveSession();
+                router.push(`/lessons/${params.level}`);
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-sm font-semibold transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+              Finish lesson
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="hidden lg:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
+        <div className="hidden md:flex flex-col w-14 bg-slate-50 border-r border-slate-200 py-4">
           {/* Back Button */}
           <Link
             href={`/lessons/${params.level}`}
@@ -550,13 +884,41 @@ export default function PresentationPage() {
             <span className="text-xs font-semibold text-blue-600">{activeModuleIndex + 1}</span>
             <span className="text-xs text-slate-400">/{modules.length}</span>
           </div>
+
+          {/* Go Live / End Live - teacher only */}
+          {userRole === 'teacher' && (
+            <div className="mt-4 px-1 flex flex-col items-center gap-2">
+              {isLive ? (
+                <button
+                  onClick={endLiveSession}
+                  title="End Live"
+                  className="size-9 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
+                >
+                  <span className="size-2.5 bg-white rounded-full animate-pulse" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsGoLiveOpen(true)}
+                  title="Go Live"
+                  className="size-9 flex items-center justify-center rounded-full border-2 border-red-500 text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">sensors</span>
+                </button>
+              )}
+            </div>
+          )}
+          {userRole === 'student' && isLive && (
+            <div className="mt-4 flex justify-center">
+              <span className="size-2.5 bg-red-500 rounded-full animate-pulse" title="Live lesson" />
+            </div>
+          )}
         </div>
       )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar - Mobile */}
-        <div className="lg:hidden flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3">
+        {/* Top Bar - Mobile only */}
+        <div className="md:hidden flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
               href={`/lessons/${params.level}`}
@@ -663,10 +1025,9 @@ export default function PresentationPage() {
                                           placeholder="..."
                                           value={userValue}
                                           onChange={(e) => {
-                                            setUserAnswers(prev => ({
-                                              ...prev,
-                                              [`${module.id}-${blankIndex}`]: e.target.value,
-                                            }));
+                                            const key = `${module.id}-${blankIndex}`;
+                                            setUserAnswers(prev => ({ ...prev, [key]: e.target.value }));
+                                            broadcastInteraction({ kind: 'fill_blank', key, value: e.target.value, moduleId: module.id });
                                           }}
                                         />
                                         {showAnswers[module.id] && isWrong && (
@@ -710,10 +1071,9 @@ export default function PresentationPage() {
                                       placeholder="..."
                                       value={userValue}
                                       onChange={(e) => {
-                                        setUserAnswers(prev => ({
-                                          ...prev,
-                                          [`${module.id}-${blankIndex}`]: e.target.value,
-                                        }));
+                                        const key = `${module.id}-${blankIndex}`;
+                                        setUserAnswers(prev => ({ ...prev, [key]: e.target.value }));
+                                        broadcastInteraction({ kind: 'fill_blank', key, value: e.target.value, moduleId: module.id });
                                       }}
                                     />
                                     {showAnswers[module.id] && isWrong && (
@@ -843,6 +1203,7 @@ export default function PresentationPage() {
                                           answers: { ...(prev[module.id]?.answers || {}), [statement.id]: true }
                                         }
                                       }));
+                                      broadcastInteraction({ kind: 'truefalse', moduleId: module.id, statementId: statement.id, value: true });
                                     }}
                                     className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
                                       tfState.showResults && isAnswered
@@ -870,6 +1231,7 @@ export default function PresentationPage() {
                                           answers: { ...(prev[module.id]?.answers || {}), [statement.id]: false }
                                         }
                                       }));
+                                      broadcastInteraction({ kind: 'truefalse', moduleId: module.id, statementId: statement.id, value: false });
                                     }}
                                     className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
                                       tfState.showResults && isAnswered
@@ -895,13 +1257,12 @@ export default function PresentationPage() {
 
                         <button
                           onClick={() => {
+                            const next = !trueFalseStates[module.id]?.showResults;
                             setTrueFalseStates(prev => ({
                               ...prev,
-                              [module.id]: {
-                                ...prev[module.id] || { answers: {} },
-                                showResults: !prev[module.id]?.showResults
-                              }
+                              [module.id]: { ...prev[module.id] || { answers: {} }, showResults: next }
                             }));
+                            broadcastInteraction({ kind: 'show_results', stateType: 'truefalse', moduleId: module.id, value: next });
                           }}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                         >
@@ -969,6 +1330,7 @@ export default function PresentationPage() {
                                             selections: { ...(prev[module.id]?.selections || {}), [item.id]: e.target.value }
                                           }
                                         }));
+                                        broadcastInteraction({ kind: 'imagechoice', moduleId: module.id, itemId: item.id, value: e.target.value });
                                       }}
                                       className={`w-full px-3 py-2 rounded-lg border text-sm appearance-none cursor-pointer transition-colors ${
                                         icState.showResults && selectedValue
@@ -1005,13 +1367,12 @@ export default function PresentationPage() {
                         {/* Check Answers Button - Bottom */}
                         <button
                           onClick={() => {
+                            const next = !imageChoiceStates[module.id]?.showResults;
                             setImageChoiceStates(prev => ({
                               ...prev,
-                              [module.id]: {
-                                ...prev[module.id] || { selections: {}, shuffledOptions: {} },
-                                showResults: !prev[module.id]?.showResults
-                              }
+                              [module.id]: { ...prev[module.id] || { selections: {}, shuffledOptions: {} }, showResults: next }
                             }));
+                            broadcastInteraction({ kind: 'show_results', stateType: 'imagechoice', moduleId: module.id, value: next });
                           }}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                         >
@@ -1070,6 +1431,7 @@ export default function PresentationPage() {
                                                   }
                                                 }
                                               }));
+                                              broadcastInteraction({ kind: 'inlinechoice', moduleId: module.id, sentenceId: sentence.id, blankIndex, value: e.target.value });
                                             }}
                                             className={`px-2 py-0.5 pr-6 rounded border text-sm appearance-none cursor-pointer transition-colors ${
                                               icState.showResults && selectedValue
@@ -1108,13 +1470,12 @@ export default function PresentationPage() {
                         {/* Check Answers Button - Bottom */}
                         <button
                           onClick={() => {
+                            const next = !inlineChoiceStates[module.id]?.showResults;
                             setInlineChoiceStates(prev => ({
                               ...prev,
-                              [module.id]: {
-                                ...prev[module.id] || { selections: {}, shuffledOptions: {} },
-                                showResults: !prev[module.id]?.showResults
-                              }
+                              [module.id]: { ...prev[module.id] || { selections: {}, shuffledOptions: {} }, showResults: next }
                             }));
+                            broadcastInteraction({ kind: 'show_results', stateType: 'inlinechoice', moduleId: module.id, value: next });
                           }}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                         >
@@ -1571,20 +1932,52 @@ export default function PresentationPage() {
               })}
             </div>
 
-            {/* End of Lesson */}
-            <div className="text-center py-10 mt-6 border-t border-slate-200">
-              <p className="text-slate-500 mb-4">End of lesson</p>
-              <Link
-                href={`/lessons/${params.level}`}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back to Lessons
-              </Link>
-            </div>
           </div>
         </div>
       </div>
+
+      {/* Go Live Modal */}
+      {isGoLiveOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-slate-800 text-lg">Start Live Lesson</h2>
+              <button onClick={() => setIsGoLiveOpen(false)}>
+                <span className="material-symbols-outlined text-slate-400 hover:text-slate-600">close</span>
+              </button>
+            </div>
+            <p className="text-slate-500 text-sm mb-4">Select students to invite</p>
+            <div className="space-y-1.5 max-h-60 overflow-y-auto mb-5">
+              {allStudents.map(student => (
+                <label key={student.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedStudentIds.includes(student.id)}
+                    onChange={(e) => {
+                      setSelectedStudentIds(prev =>
+                        e.target.checked ? [...prev, student.id] : prev.filter(id => id !== student.id)
+                      );
+                    }}
+                    className="rounded accent-red-500"
+                  />
+                  <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 shrink-0">
+                    {student.initials}
+                  </div>
+                  <span className="text-slate-700 text-sm font-medium">{student.name}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={startLiveSession}
+              disabled={selectedStudentIds.length === 0}
+              className="w-full h-11 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">sensors</span>
+              Start ({selectedStudentIds.length} student{selectedStudentIds.length !== 1 ? 's' : ''})
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Image Lightbox Modal */}
       {lightboxImage && (

@@ -1366,3 +1366,208 @@ export async function fetchStudentByUserId(userId: string) {
 
   return data;
 }
+
+// ========================================
+// APP SETTINGS
+// ========================================
+
+export async function fetchSetting(key: string): Promise<string | null> {
+  const { data } = await supabase.from('app_settings').select('value').eq('key', key).maybeSingle();
+  return data?.value ?? null;
+}
+
+export async function saveSetting(key: string, value: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key, value }, { onConflict: 'key' });
+  return !error;
+}
+
+// ========================================
+// MESSAGES
+// ========================================
+
+export interface Message {
+  id: string;
+  student_id: string;
+  sender: 'student' | 'teacher';
+  text?: string | null;
+  image_url?: string | null;
+  audio_url?: string | null;
+  read_at?: string | null;
+  created_at: string;
+}
+
+export async function fetchMessages(studentId: string): Promise<Message[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: true });
+  if (error) { console.error('fetchMessages error:', error); return []; }
+  return data || [];
+}
+
+export async function sendMessage(
+  studentId: string,
+  sender: 'student' | 'teacher',
+  payload: { text?: string; image_url?: string; audio_url?: string }
+): Promise<Message | null> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ student_id: studentId, sender, ...payload })
+    .select()
+    .single();
+  if (error) { console.error('sendMessage error:', error); return null; }
+  return data;
+}
+
+export async function markMessagesRead(studentId: string, readerRole: 'student' | 'teacher'): Promise<void> {
+  const senderToMark = readerRole === 'teacher' ? 'student' : 'teacher';
+  await supabase
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('student_id', studentId)
+    .eq('sender', senderToMark)
+    .is('read_at', null);
+}
+
+export async function fetchUnreadMessageCounts(): Promise<{ [studentId: string]: number }> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('student_id')
+    .eq('sender', 'student')
+    .is('read_at', null);
+  if (error || !data) return {};
+  const counts: { [key: string]: number } = {};
+  data.forEach(({ student_id }: { student_id: string }) => {
+    counts[student_id] = (counts[student_id] || 0) + 1;
+  });
+  return counts;
+}
+
+export async function fetchStudentUnreadCount(studentId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('student_id', studentId)
+    .eq('sender', 'teacher')
+    .is('read_at', null);
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function deleteMessage(id: string): Promise<boolean> {
+  const { error } = await supabase.from('messages').delete().eq('id', id);
+  if (error) { console.error('deleteMessage error:', error); return false; }
+  return true;
+}
+
+// ========================================
+// PAYMENT REMINDERS
+// ========================================
+
+export interface PaymentReminder {
+  id: string;
+  student_id: string;
+  sent_at: string;
+  dismissed_at: string | null;
+  language: string;
+  is_auto: boolean;
+}
+
+export interface PaymentReminderSchedule {
+  id: string;
+  student_id: string;
+  day_of_month: number;
+  language: string;
+  active: boolean;
+  last_sent_month: string | null;
+}
+
+export async function sendPaymentReminder(
+  studentId: string,
+  language: string,
+  isAuto = false
+): Promise<PaymentReminder | null> {
+  const { data, error } = await supabase
+    .from('payment_reminders')
+    .insert({ student_id: studentId, language, is_auto: isAuto })
+    .select()
+    .single();
+  if (error) { console.error('sendPaymentReminder error:', error); return null; }
+  return data;
+}
+
+export async function fetchActivePaymentReminder(studentId: string): Promise<PaymentReminder | null> {
+  const { data, error } = await supabase
+    .from('payment_reminders')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) { console.error('fetchActivePaymentReminder error:', error); return null; }
+  return data;
+}
+
+export async function dismissPaymentReminder(reminderId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('payment_reminders')
+    .delete()
+    .eq('id', reminderId);
+  if (error) { console.error('dismissPaymentReminder error:', error); return false; }
+  return true;
+}
+
+export async function fetchReminderSchedule(studentId: string): Promise<PaymentReminderSchedule | null> {
+  const { data, error } = await supabase
+    .from('payment_reminder_schedules')
+    .select('*')
+    .eq('student_id', studentId)
+    .maybeSingle();
+  if (error) { console.error('fetchReminderSchedule error:', error); return null; }
+  return data;
+}
+
+export async function saveReminderSchedule(
+  studentId: string,
+  dayOfMonth: number,
+  language: string,
+  active: boolean
+): Promise<boolean> {
+  if (!active) {
+    const { error } = await supabase
+      .from('payment_reminder_schedules')
+      .delete()
+      .eq('student_id', studentId);
+    if (error) { console.error('saveReminderSchedule delete error:', error); return false; }
+    return true;
+  }
+  const { error } = await supabase
+    .from('payment_reminder_schedules')
+    .upsert({ student_id: studentId, day_of_month: dayOfMonth, language, active: true }, { onConflict: 'student_id' });
+  if (error) { console.error('saveReminderSchedule upsert error:', error); return false; }
+  return true;
+}
+
+// Checks if an auto-reminder should fire today; if so, sends it and updates last_sent_month
+export async function checkAndSendAutoReminder(studentId: string): Promise<boolean> {
+  const schedule = await fetchReminderSchedule(studentId);
+  if (!schedule || !schedule.active) return false;
+
+  const today = new Date();
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  if (today.getDate() !== schedule.day_of_month) return false;
+  if (schedule.last_sent_month === currentMonth) return false;
+
+  const reminder = await sendPaymentReminder(studentId, schedule.language, true);
+  if (!reminder) return false;
+
+  await supabase
+    .from('payment_reminder_schedules')
+    .update({ last_sent_month: currentMonth })
+    .eq('student_id', studentId);
+
+  return true;
+}
