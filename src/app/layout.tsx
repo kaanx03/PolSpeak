@@ -90,7 +90,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               const link = document.createElement('link');
-              link.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
+              link.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&family=Caveat:wght@600;700&display=swap';
               link.rel = 'stylesheet';
               document.head.appendChild(link);
             `,

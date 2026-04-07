@@ -865,6 +865,33 @@ export default function StudentDetailPage() {
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Payment sticky notes
+  const [stickyNotes, setStickyNotes] = useState<{ id: string; text: string }[]>([]);
+
+  const saveStickyNotes = async (notes: { id: string; text: string }[]) => {
+    setStickyNotes(notes);
+    await supabase.from("students").update({ payment_notes: JSON.stringify(notes) }).eq("id", studentId);
+  };
+
+  const addStickyNote = () => {
+    const newNotes = [...stickyNotes, { id: crypto.randomUUID(), text: "" }];
+    saveStickyNotes(newNotes);
+  };
+
+  const updateStickyNote = (id: string, text: string) => {
+    setStickyNotes((prev) => prev.map((n) => n.id === id ? { ...n, text } : n));
+  };
+
+  const saveStickyNoteBlur = (id: string, text: string) => {
+    const updated = stickyNotes.map((n) => n.id === id ? { ...n, text } : n);
+    saveStickyNotes(updated);
+  };
+
+  const deleteStickyNote = (id: string) => {
+    const updated = stickyNotes.filter((n) => n.id !== id);
+    saveStickyNotes(updated);
+  };
+
   // Payment reminder state
   const [reminderLang, setReminderLang] = useState("uk");
   const [reminderSending, setReminderSending] = useState(false);
@@ -903,6 +930,7 @@ export default function StudentDetailPage() {
         topicsCovered: studentData.topics_covered || [],
         customTopics: studentData.custom_topics || [],
         payments: studentData.payments || [],
+        paymentNotes: (studentData as any).payment_notes ?? "",
         lessonHistory: [],
       };
 
@@ -919,6 +947,10 @@ export default function StudentDetailPage() {
       }));
 
       setStudent(mappedStudent);
+      try {
+        const raw = (studentData as any).payment_notes;
+        setStickyNotes(raw ? JSON.parse(raw) : []);
+      } catch { setStickyNotes([]); }
       const studentLang = (studentData as any).language || "uk";
       setReminderLang(studentLang);
 
@@ -1718,6 +1750,61 @@ export default function StudentDetailPage() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Sticky Notes */}
+                <div className="bg-white rounded-lg border border-slate-200 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-500 text-[18px]">sticky_note_2</span>
+                      <h3 className="text-sm font-semibold text-slate-800">Payment Notes</h3>
+                    </div>
+                    <button
+                      onClick={addStickyNote}
+                      className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">add</span>
+                      Add Note
+                    </button>
+                  </div>
+
+                  {stickyNotes.length === 0 ? (
+                    <div className="text-center py-8">
+                      <span className="material-symbols-outlined text-4xl text-amber-200 block mb-2">sticky_note_2</span>
+                      <p className="text-sm text-slate-400">No notes yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {stickyNotes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="relative group flex flex-col bg-amber-50 border border-amber-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                          style={{ minHeight: 120 }}
+                        >
+                          {/* Delete button */}
+                          <button
+                            onClick={() => deleteStickyNote(note.id)}
+                            className="absolute top-2 right-2 size-5 rounded-full hover:bg-red-100 text-amber-400 hover:text-red-500 transition-colors flex items-center justify-center"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+
+                          {/* Tape strip at top */}
+                          <div className="h-2 w-10 bg-amber-300/60 rounded-sm mx-auto -mt-1 mb-1" />
+
+                          {/* Textarea */}
+                          <textarea
+                            value={note.text}
+                            onChange={(e) => updateStickyNote(note.id, e.target.value)}
+                            onBlur={(e) => saveStickyNoteBlur(note.id, e.target.value)}
+                            placeholder=""
+                            className="flex-1 w-full px-3 py-2 bg-transparent text-base text-amber-900 placeholder:text-amber-300 focus:outline-none resize-none font-bold leading-relaxed tracking-wide"
+style={{ minHeight: 100, fontFamily: "'Caveat', cursive", fontWeight: 700, fontSize: "1.05rem" }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment History Card */}
