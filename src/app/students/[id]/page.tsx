@@ -1798,8 +1798,8 @@ export default function StudentDetailPage() {
                             onChange={(e) => updateStickyNote(note.id, e.target.value)}
                             onBlur={(e) => saveStickyNoteBlur(note.id, e.target.value)}
                             placeholder=""
-                            className="flex-1 w-full px-3 py-2 bg-transparent text-base text-amber-900 placeholder:text-amber-300 focus:outline-none resize-none font-bold leading-relaxed tracking-wide"
-style={{ minHeight: 100, fontFamily: "'Caveat', cursive", fontWeight: 700, fontSize: "1.05rem" }}
+                            className="flex-1 w-full px-3 py-2 bg-transparent text-sm text-amber-950 placeholder:text-amber-300 focus:outline-none resize-none leading-relaxed"
+style={{ minHeight: 100 }}
                           />
                         </div>
                       ))}
