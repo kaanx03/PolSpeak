@@ -236,7 +236,9 @@ export default function MessagesPage() {
       setStudents(studs.filter((s: Student) => s.status === "active"));
     };
     init();
-    Notification.requestPermission();
+    Notification.requestPermission().then(p => {
+      if (p === "granted") new Notification("✅ Notifications active", { body: "You will be notified of new messages", icon: "/logo.png" });
+    });
 
     // Subscribe to new unread messages from any student
     const globalChannel = supabase
