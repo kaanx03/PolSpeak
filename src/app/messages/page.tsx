@@ -198,6 +198,7 @@ export default function MessagesPage() {
   const [recording, setRecording] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [search, setSearch] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -236,9 +237,6 @@ export default function MessagesPage() {
       setStudents(studs.filter((s: Student) => s.status === "active"));
     };
     init();
-    Notification.requestPermission().then(p => {
-      if (p === "granted") new Notification("✅ Notifications active", { body: "You will be notified of new messages", icon: "/logo.png" });
-    });
 
     // Subscribe to new unread messages from any student
     const globalChannel = supabase
@@ -260,13 +258,6 @@ export default function MessagesPage() {
               rawTime: new Date(msg.created_at).getTime(),
             },
           }));
-          // Show browser notification if tab not focused
-          if (document.visibilityState !== "visible" && Notification.permission === "granted") {
-            new Notification("New message 💬", {
-              body: msg.text || (msg.audio_url ? "🎤 Voice message" : "📎 File"),
-              icon: "/logo.png",
-            });
-          }
         }
       )
       .subscribe();
@@ -363,6 +354,14 @@ export default function MessagesPage() {
         body: JSON.stringify({ storagePath }),
       });
     } catch {}
+  };
+
+  const handleClearChat = async () => {
+    if (!selectedStudentId) return;
+    await supabase.from("messages").delete().eq("student_id", selectedStudentId);
+    setMessages([]);
+    setLastMessages((prev) => { const n = { ...prev }; delete n[selectedStudentId]; return n; });
+    setShowClearConfirm(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -512,7 +511,7 @@ export default function MessagesPage() {
 
         {/* Chat Panel */}
         {selectedStudentId ? (
-          <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 min-w-0">
+          <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 min-w-0 relative">
             {/* Chat header */}
             <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shrink-0">
               <button
@@ -527,13 +526,34 @@ export default function MessagesPage() {
               >
                 {selectedStudent?.initials}
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="font-semibold text-slate-800 text-sm">{selectedStudent?.name}</p>
                 {selectedStudent?.level && (
                   <p className="text-xs text-slate-400">{selectedStudent.level.toUpperCase()}</p>
                 )}
               </div>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="size-9 flex items-center justify-center rounded-full hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                title="Clear chat"
+              >
+                <span className="material-symbols-outlined text-[20px]">delete_sweep</span>
+              </button>
             </div>
+
+            {/* Clear chat confirm */}
+            {showClearConfirm && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30">
+                <div className="bg-white rounded-2xl shadow-xl p-6 mx-4 max-w-sm w-full">
+                  <p className="font-semibold text-slate-800 mb-1">Clear chat?</p>
+                  <p className="text-sm text-slate-500 mb-5">All messages with {selectedStudent?.name} will be permanently deleted.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 h-10 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">Cancel</button>
+                    <button onClick={handleClearChat} className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors">Delete all</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2.5">

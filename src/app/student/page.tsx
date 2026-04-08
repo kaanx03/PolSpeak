@@ -55,7 +55,6 @@ const studentTranslations = {
     msgEmpty: "Немає повідомлень", msgEmptyDesc: "Напишіть своєму вчителю!",
     paymentReminderText: "привіт! 💛 це автоматична напоминалка про оплату абонементу) гарного дня ☺️",
     paymentReminderClose: "Зрозуміло",
-    notifNewMsg: "Нове повідомлення 💬", notifVoice: "🎤 Голосове повідомлення", notifFile: "📎 Файл",
   },
   pl: {
     portal: "Portal ucznia",
@@ -87,7 +86,6 @@ const studentTranslations = {
     msgEmpty: "Brak wiadomości", msgEmptyDesc: "Napisz do swojego nauczyciela!",
     paymentReminderText: "Drogi/a uczniu, uprzejmie przypominamy, że nadszedł czas na dokonanie płatności za lekcje. Prosimy o uregulowanie należności w najbliższym czasie. Dziękujemy za Twoje zaangażowanie i zrozumienie! 🙏",
     paymentReminderClose: "Rozumiem",
-    notifNewMsg: "Nowa wiadomość 💬", notifVoice: "🎤 Wiadomość głosowa", notifFile: "📎 Plik",
   },
 };
 
@@ -334,8 +332,6 @@ export default function StudentPage() {
   useEffect(() => { loadStudentData(); }, []);
 
   const t = studentTranslations[language as keyof typeof studentTranslations] ?? studentTranslations.uk;
-  const tRef = useRef(t);
-  useEffect(() => { tRef.current = t; }, [t]);
 
   const loadStudentData = async () => {
     try {
@@ -348,7 +344,6 @@ export default function StudentPage() {
       setStudentName(student.name);
       setStudentId(student.id);
       setStudentData(student);
-      Notification.requestPermission();
       const savedLang = localStorage.getItem("student_language");
       setLanguageState(savedLang || (student as any).language || "uk");
 
@@ -402,12 +397,6 @@ export default function StudentPage() {
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
           if (msg.sender === "teacher") {
             await markMessagesRead(studentId, "student");
-            if (document.visibilityState !== "visible" && Notification.permission === "granted") {
-              new Notification(tRef.current.notifNewMsg, {
-                body: msg.text || (msg.audio_url ? tRef.current.notifVoice : tRef.current.notifFile),
-                icon: "/logo.png",
-              });
-            }
           }
         }
       )
