@@ -23,9 +23,10 @@ export async function subscribeToPush(
     console.log("[push] permission:", permission);
     if (permission !== "granted") return false;
 
-    let reg = await navigator.serviceWorker.getRegistration("/");
-    if (!reg) reg = await navigator.serviceWorker.ready;
-    console.log("[push] SW reg:", reg?.active?.scriptURL ?? reg?.installing?.scriptURL ?? "no sw");
+    const regs = await navigator.serviceWorker.getRegistrations();
+    console.log("[push] SW registrations:", regs.length, regs.map(r => r.scope + " active:" + !!r.active));
+    const reg = regs[0];
+    if (!reg) { console.warn("[push] no SW registration found"); return false; }
 
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
