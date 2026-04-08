@@ -83,6 +83,24 @@ export default function RootLayout({
           </ToastProvider>
         </AuthGuard>
         <SpeedInsights />
+        {/* Register service worker manually (next-pwa v5 App Router fix) */}
+        <Script
+          id="sw-register"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                    console.log('[SW] registered:', reg.scope);
+                  }).catch(function(err) {
+                    console.error('[SW] registration failed:', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
         {/* Load Material Symbols font after page load - prevents render blocking */}
         <Script
           id="google-fonts"
