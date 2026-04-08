@@ -23,6 +23,7 @@ import {
   type Message,
   type PaymentReminder,
 } from "@/lib/supabase-helpers";
+import { subscribeToPush, sendPushNotification } from "@/lib/push";
 
 const studentTranslations = {
   uk: {
@@ -344,6 +345,7 @@ export default function StudentPage() {
       setStudentName(student.name);
       setStudentId(student.id);
       setStudentData(student);
+      subscribeToPush("student", student.id);
       const savedLang = localStorage.getItem("student_language");
       setLanguageState(savedLang || (student as any).language || "uk");
 
@@ -456,7 +458,10 @@ export default function StudentPage() {
     setMsgText("");
     setMsgSending(true);
     const msg = await sendMessage(studentId, "student", { text: trimmed });
-    if (msg) setMessages((prev) => [...prev, msg]);
+    if (msg) {
+      setMessages((prev) => [...prev, msg]);
+      sendPushNotification("teacher", { title: `${studentName} 💬`, body: trimmed, url: "/messages" });
+    }
     setMsgSending(false);
   };
 
@@ -691,11 +696,30 @@ export default function StudentPage() {
                   <p className="text-slate-300 text-xs mt-1">{t.msgEmptyDesc}</p>
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, index) => {
                   const isStudent = msg.sender === "student";
                   const time = new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  const msgDay = new Date(msg.created_at).toDateString();
+                  const prevDay = index > 0 ? new Date(messages[index - 1].created_at).toDateString() : null;
+                  const showDate = msgDay !== prevDay;
+                  const locale = language === "uk" ? "uk-UA" : language === "pl" ? "pl-PL" : "tr-TR";
+                  const today = new Date().toDateString();
+                  const yesterday = new Date(Date.now() - 86400000).toDateString();
+                  const dateLabel = msgDay === today
+                    ? (language === "uk" ? "Сьогодні" : language === "pl" ? "Dzisiaj" : "Bugün")
+                    : msgDay === yesterday
+                    ? (language === "uk" ? "Вчора" : language === "pl" ? "Wczoraj" : "Dün")
+                    : new Date(msg.created_at).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
                   return (
-                    <div key={msg.id} className={`flex items-end gap-1.5 ${isStudent ? "justify-end" : "justify-start"}`}>
+                    <div key={msg.id}>
+                      {showDate && (
+                        <div className="flex items-center gap-3 my-3">
+                          <div className="flex-1 h-px bg-slate-200" />
+                          <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{dateLabel}</span>
+                          <div className="flex-1 h-px bg-slate-200" />
+                        </div>
+                      )}
+                    <div className={`flex items-end gap-1.5 ${isStudent ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm ${isStudent ? "bg-indigo-600 text-white rounded-br-sm" : "bg-white text-slate-800 border border-slate-200 rounded-bl-sm"}`}>
                         {msg.text && <p className="text-sm leading-relaxed break-words">{msg.text}</p>}
                         {msg.image_url && (
@@ -720,6 +744,7 @@ export default function StudentPage() {
                         )}
                         <p className={`text-[10px] mt-1 text-right ${isStudent ? "text-indigo-200" : "text-slate-400"}`}>{time}</p>
                       </div>
+                    </div>
                     </div>
                   );
                 })

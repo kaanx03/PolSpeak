@@ -13,6 +13,7 @@ import {
   type Student,
   type Message,
 } from "@/lib/supabase-helpers";
+import { subscribeToPush, sendPushNotification } from "@/lib/push";
 
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#f97316","#14b8a6","#3b82f6","#0ea5e9","#a855f7","#10b981","#f59e0b","#ef4444","#06b6d4","#84cc16","#d946ef","#fb923c"];
 const avatarColor = (name: string) => {
@@ -191,6 +192,7 @@ export default function MessagesPage() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<{ [id: string]: number }>({});
+  const [lastMessages, setLastMessages] = useState<{ [id: string]: { preview: string; time: string; rawTime: number } }>({});
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -209,10 +211,33 @@ export default function MessagesPage() {
         fetchStudents(),
         fetchUnreadMessageCounts(),
       ]);
-      setStudents(studs.filter((s: Student) => s.status === "active"));
       setUnreadCounts(counts);
+
+      // Fetch last message per student BEFORE rendering the list
+      const { data: recentMsgs } = await supabase
+        .from("messages")
+        .select("student_id, text, image_url, audio_url, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      const map: typeof lastMessages = {};
+      if (recentMsgs) {
+        const seen = new Set<string>();
+        for (const m of recentMsgs) {
+          if (!seen.has(m.student_id)) {
+            seen.add(m.student_id);
+            map[m.student_id] = {
+              preview: m.text || (m.audio_url ? "🎤 Voice message" : m.image_url ? "📎 File" : ""),
+              time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              rawTime: new Date(m.created_at).getTime(),
+            };
+          }
+        }
+      }
+      setLastMessages(map);
+      setStudents(studs.filter((s: Student) => s.status === "active"));
     };
     init();
+    subscribeToPush("teacher");
 
     // Subscribe to new unread messages from any student
     const globalChannel = supabase
@@ -225,6 +250,14 @@ export default function MessagesPage() {
           setUnreadCounts((prev) => ({
             ...prev,
             [msg.student_id]: (prev[msg.student_id] || 0) + 1,
+          }));
+          setLastMessages((prev) => ({
+            ...prev,
+            [msg.student_id]: {
+              preview: msg.text || (msg.audio_url ? "🎤 Voice message" : msg.image_url ? "📎 File" : ""),
+              time: new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              rawTime: new Date(msg.created_at).getTime(),
+            },
           }));
         }
       )
@@ -284,7 +317,10 @@ export default function MessagesPage() {
     setText("");
     setSending(true);
     const msg = await sendMessage(selectedStudentId, "teacher", { text: trimmed });
-    if (msg) setMessages((prev) => [...prev, msg]);
+    if (msg) {
+      setMessages((prev) => [...prev, msg]);
+      sendPushNotification("student", { studentId: selectedStudentId, title: "Yeni mesaj 💬", body: trimmed, url: "/student" });
+    }
     setSending(false);
   };
 
@@ -378,9 +414,9 @@ export default function MessagesPage() {
 
   const selectedStudent = students.find((s) => s.id === selectedStudentId);
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
-  const filteredStudents = students.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = students
+    .filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => (lastMessages[b.id]?.rawTime || 0) - (lastMessages[a.id]?.rawTime || 0));
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg-main">
@@ -441,22 +477,25 @@ export default function MessagesPage() {
                       {student.initials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-sm truncate ${
-                          unread > 0 ? "font-bold text-slate-900" : "font-medium text-slate-700"
-                        }`}
-                      >
-                        {student.name}
-                      </p>
-                      {student.level && (
-                        <p className="text-[11px] text-slate-400 mt-0.5">{student.level.toUpperCase()}</p>
-                      )}
+                      <div className="flex items-center justify-between gap-1">
+                        <p className={`text-sm truncate ${unread > 0 ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
+                          {student.name}
+                        </p>
+                        {lastMessages[student.id] && (
+                          <span className="text-[10px] text-slate-400 shrink-0">{lastMessages[student.id].time}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-1 mt-0.5">
+                        <p className={`text-[11px] truncate ${unread > 0 ? "text-slate-600 font-medium" : "text-slate-400"}`}>
+                          {lastMessages[student.id]?.preview || (student.level ? student.level.toUpperCase() : "")}
+                        </p>
+                        {unread > 0 && (
+                          <span className="size-4 bg-indigo-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center shrink-0">
+                            {unread > 9 ? "9+" : unread}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {unread > 0 && (
-                      <span className="size-5 bg-indigo-600 text-white text-[11px] font-bold rounded-full flex items-center justify-center shrink-0">
-                        {unread > 9 ? "9+" : unread}
-                      </span>
-                    )}
                   </button>
                 );
               })

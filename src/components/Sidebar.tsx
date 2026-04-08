@@ -26,6 +26,7 @@ interface Settings {
 export default function Sidebar({ hideHamburger = false, hideProfileMenu = false }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const [settings, setSettings] = useState<Settings>({
@@ -51,6 +52,33 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
   useEffect(() => {
     setMounted(true);
     loadUserSettings();
+
+    // Fetch initial unread count
+    supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("sender", "student")
+      .is("read_at", null)
+      .then(({ count }) => setUnreadMessages(count || 0));
+
+    // Realtime: new student message → increment badge
+    const channel = supabase
+      .channel("sidebar-messages")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "sender=eq.student" }, () => {
+        setUnreadMessages((n) => n + 1);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: "sender=eq.student" }, () => {
+        // Re-fetch on read_at updates (messages marked as read)
+        supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("sender", "student")
+          .is("read_at", null)
+          .then(({ count }) => setUnreadMessages(count || 0));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const loadUserSettings = async () => {
@@ -337,13 +365,20 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
               }`}
               href="/messages"
             >
-              <span
-                className={`material-symbols-outlined ${
-                  mounted && pathname === "/messages" ? "text-indigo-400" : "group-hover:text-white transition-colors"
-                }`}
-                style={mounted && pathname === "/messages" ? { fontVariationSettings: "'FILL' 1" } : undefined}
-              >
-                chat_bubble
+              <span className="relative">
+                <span
+                  className={`material-symbols-outlined ${
+                    mounted && pathname === "/messages" ? "text-indigo-400" : "group-hover:text-white transition-colors"
+                  }`}
+                  style={mounted && pathname === "/messages" ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                >
+                  chat_bubble
+                </span>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </span>
+                )}
               </span>
               <span className={`text-sm ${mounted && pathname === "/messages" ? "font-bold" : "font-medium"}`}>Messages</span>
             </a>
@@ -530,11 +565,18 @@ export default function Sidebar({ hideHamburger = false, hideProfileMenu = false
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              <span
-                className="material-symbols-outlined text-[24px]"
-                style={mounted && pathname === "/messages" ? { fontVariationSettings: "'FILL' 1" } : undefined}
-              >
-                chat_bubble
+              <span className="relative">
+                <span
+                  className="material-symbols-outlined text-[24px]"
+                  style={mounted && pathname === "/messages" ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                >
+                  chat_bubble
+                </span>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </span>
+                )}
               </span>
               <span className="text-[10px] font-medium hidden md:block">Messages</span>
             </a>

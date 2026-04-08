@@ -25,7 +25,8 @@
       "Bash(xargs grep:*)",
       "Bash(grep -l \"fetchStudentByUserId\\\\|fetchStudentHomework\\\\|student\" /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx /c/Users/PC/Desktop/files/PolSpeak/src/app/*/*/page.tsx)",
       "Bash(grep -L \"student\" /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)",
-      "Bash(ls -1 /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)"
+      "Bash(ls -1 /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)",
+      "Bash(npx web-push:*)"
     ]
   }
 }
