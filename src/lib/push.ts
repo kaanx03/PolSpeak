@@ -14,33 +14,37 @@ export async function subscribeToPush(
   studentId?: string
 ): Promise<boolean> {
   try {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      console.warn("[push] SW or PushManager not available");
+      return false;
+    }
 
     const permission = await Notification.requestPermission();
+    console.log("[push] permission:", permission);
     if (permission !== "granted") return false;
 
     const reg = await navigator.serviceWorker.ready;
-    let sub = await reg.pushManager.getSubscription();
+    console.log("[push] SW ready:", reg.active?.scriptURL);
 
+    let sub = await reg.pushManager.getSubscription();
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
     }
+    console.log("[push] subscription endpoint:", sub.endpoint);
 
-    await fetch("/api/push/subscribe", {
+    const res = await fetch("/api/push/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subscription: sub.toJSON(),
-        userType,
-        studentId,
-      }),
+      body: JSON.stringify({ subscription: sub.toJSON(), userType, studentId }),
     });
+    console.log("[push] subscribe API response:", res.status);
 
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[push] subscribeToPush error:", err);
     return false;
   }
 }
