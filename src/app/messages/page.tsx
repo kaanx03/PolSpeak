@@ -13,7 +13,6 @@ import {
   type Student,
   type Message,
 } from "@/lib/supabase-helpers";
-import { subscribeToPush, sendPushNotification } from "@/lib/push";
 
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#f97316","#14b8a6","#3b82f6","#0ea5e9","#a855f7","#10b981","#f59e0b","#ef4444","#06b6d4","#84cc16","#d946ef","#fb923c"];
 const avatarColor = (name: string) => {
@@ -237,7 +236,7 @@ export default function MessagesPage() {
       setStudents(studs.filter((s: Student) => s.status === "active"));
     };
     init();
-    subscribeToPush("teacher");
+    Notification.requestPermission();
 
     // Subscribe to new unread messages from any student
     const globalChannel = supabase
@@ -259,6 +258,13 @@ export default function MessagesPage() {
               rawTime: new Date(msg.created_at).getTime(),
             },
           }));
+          // Show browser notification if tab not focused
+          if (document.visibilityState !== "visible" && Notification.permission === "granted") {
+            new Notification("New message 💬", {
+              body: msg.text || (msg.audio_url ? "🎤 Voice message" : "📎 File"),
+              icon: "/logo.png",
+            });
+          }
         }
       )
       .subscribe();
@@ -319,7 +325,6 @@ export default function MessagesPage() {
     const msg = await sendMessage(selectedStudentId, "teacher", { text: trimmed });
     if (msg) {
       setMessages((prev) => [...prev, msg]);
-      sendPushNotification("student", { studentId: selectedStudentId, title: "Yeni mesaj 💬", body: trimmed, url: "/student" });
     }
     setSending(false);
   };

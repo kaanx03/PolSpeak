@@ -23,7 +23,6 @@ import {
   type Message,
   type PaymentReminder,
 } from "@/lib/supabase-helpers";
-import { subscribeToPush, sendPushNotification } from "@/lib/push";
 
 const studentTranslations = {
   uk: {
@@ -56,6 +55,7 @@ const studentTranslations = {
     msgEmpty: "Немає повідомлень", msgEmptyDesc: "Напишіть своєму вчителю!",
     paymentReminderText: "привіт! 💛 це автоматична напоминалка про оплату абонементу) гарного дня ☺️",
     paymentReminderClose: "Зрозуміло",
+    notifNewMsg: "Нове повідомлення 💬", notifVoice: "🎤 Голосове повідомлення", notifFile: "📎 Файл",
   },
   pl: {
     portal: "Portal ucznia",
@@ -87,6 +87,7 @@ const studentTranslations = {
     msgEmpty: "Brak wiadomości", msgEmptyDesc: "Napisz do swojego nauczyciela!",
     paymentReminderText: "Drogi/a uczniu, uprzejmie przypominamy, że nadszedł czas na dokonanie płatności za lekcje. Prosimy o uregulowanie należności w najbliższym czasie. Dziękujemy za Twoje zaangażowanie i zrozumienie! 🙏",
     paymentReminderClose: "Rozumiem",
+    notifNewMsg: "Nowa wiadomość 💬", notifVoice: "🎤 Wiadomość głosowa", notifFile: "📎 Plik",
   },
 };
 
@@ -333,6 +334,8 @@ export default function StudentPage() {
   useEffect(() => { loadStudentData(); }, []);
 
   const t = studentTranslations[language as keyof typeof studentTranslations] ?? studentTranslations.uk;
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
 
   const loadStudentData = async () => {
     try {
@@ -345,7 +348,7 @@ export default function StudentPage() {
       setStudentName(student.name);
       setStudentId(student.id);
       setStudentData(student);
-      subscribeToPush("student", student.id);
+      Notification.requestPermission();
       const savedLang = localStorage.getItem("student_language");
       setLanguageState(savedLang || (student as any).language || "uk");
 
@@ -399,6 +402,12 @@ export default function StudentPage() {
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
           if (msg.sender === "teacher") {
             await markMessagesRead(studentId, "student");
+            if (document.visibilityState !== "visible" && Notification.permission === "granted") {
+              new Notification(tRef.current.notifNewMsg, {
+                body: msg.text || (msg.audio_url ? tRef.current.notifVoice : tRef.current.notifFile),
+                icon: "/logo.png",
+              });
+            }
           }
         }
       )
@@ -460,7 +469,6 @@ export default function StudentPage() {
     const msg = await sendMessage(studentId, "student", { text: trimmed });
     if (msg) {
       setMessages((prev) => [...prev, msg]);
-      sendPushNotification("teacher", { title: `${studentName} 💬`, body: trimmed, url: "/messages" });
     }
     setMsgSending(false);
   };

@@ -26,7 +26,10 @@
       "Bash(grep -l \"fetchStudentByUserId\\\\|fetchStudentHomework\\\\|student\" /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx /c/Users/PC/Desktop/files/PolSpeak/src/app/*/*/page.tsx)",
       "Bash(grep -L \"student\" /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)",
       "Bash(ls -1 /c/Users/PC/Desktop/files/PolSpeak/src/app/*/page.tsx)",
-      "Bash(npx web-push:*)"
+      "Bash(npx web-push:*)",
+      "Bash(rm -f src/lib/push.ts worker/index.js)",
+      "Bash(rm -rf src/app/api/push)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }
