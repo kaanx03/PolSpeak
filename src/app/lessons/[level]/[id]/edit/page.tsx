@@ -680,7 +680,7 @@ export default function LessonEditorPage() {
             module.content.baamboozleUrl.trim() === ""
           ) {
             errors.push(
-              `Module ${moduleNum} (Baamboozle): Please add a Baamboozle link`,
+              `Module ${moduleNum} (Krok po Kroku): Please add a Krok po Kroku link`,
             );
           }
           break;
@@ -912,7 +912,7 @@ export default function LessonEditorPage() {
     {
       type: "baamboozle",
       icon: "casino",
-      label: "Baamboozle",
+      label: "Krok po Kroku",
       color: "bg-pink-100 hover:bg-pink-200 text-pink-700",
     },
     {
@@ -4819,12 +4819,12 @@ export default function LessonEditorPage() {
                           </div>
                         )}
 
-                        {/* BAAMBOOZLE MODULE */}
+                        {/* KROK PO KROKU MODULE */}
                         {module.type === "baamboozle" && (
                           <div className="space-y-3">
                             <div className="space-y-2">
                               <label className="text-sm font-medium text-slate-700">
-                                Baamboozle Link:
+                                Krok po Kroku Link:
                               </label>
                               <input
                                 type="text"
@@ -4838,13 +4838,13 @@ export default function LessonEditorPage() {
                                 placeholder="https://www.baamboozle.com/slideshow/2420286"
                               />
                               <p className="text-xs text-slate-500">
-                                Paste game or slideshow link from Baamboozle
+                                Paste game or slideshow link from Krok po Kroku
                               </p>
                             </div>
                             {module.content.baamboozleUrl && (
                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                                 <p className="text-xs text-green-700 font-medium">
-                                  ✓ Baamboozle activity configured
+                                  ✓ Krok po Kroku activity configured
                                 </p>
                               </div>
                             )}
