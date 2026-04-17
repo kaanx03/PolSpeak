@@ -728,7 +728,7 @@ export default function PresentationPage() {
       audio: "Audio",
       matching: "Match the pairs",
       wordwall: "Wordwall",
-      baamboozle: "Baamboozle",
+      baamboozle: "Krok po Kroku",
       quizlet: "Quizlet",
       genially: "Genially",
       miro: "Miro Board",
@@ -1743,7 +1743,7 @@ export default function PresentationPage() {
                       </div>
                     )}
 
-                    {/* Baamboozle Module */}
+                    {/* Krok po Kroku Module */}
                     {module.type === "baamboozle" && module.content?.baamboozleUrl && (
                       <div className="py-4">
                         <a
@@ -1753,7 +1753,7 @@ export default function PresentationPage() {
                           className="inline-flex items-center gap-2 px-5 py-2.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-medium transition-colors"
                         >
                           <span className="material-symbols-outlined text-[20px]">open_in_new</span>
-                          Open Baamboozle Activity
+                          Open Krok po Kroku Activity
                         </a>
                       </div>
                     )}
