@@ -3,8 +3,8 @@ import imageCompression from 'browser-image-compression';
 // File size limits (in bytes)
 export const FILE_SIZE_LIMITS = {
   image: 10 * 1024 * 1024,  // 10 MB for images (will be compressed)
-  pdf: 50 * 1024 * 1024,    // 50 MB for PDFs (no compression - too heavy for browser)
-  audio: 50 * 1024 * 1024,  // 50 MB for audio files
+  pdf: 100 * 1024 * 1024,    // 100 MB for PDFs (no compression - too heavy for browser)
+  audio: 100 * 1024 * 1024,  // 100 MB for audio files
 };
 
 interface CompressionOptions {

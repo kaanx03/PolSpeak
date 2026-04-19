@@ -31,7 +31,7 @@ const ALLOWED_MIME_TYPES = new Set([
   "application/zip",
 ]);
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
 function getTokenFromRequest(request: NextRequest): string | null {
   const auth = request.headers.get("authorization");

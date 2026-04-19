@@ -41,7 +41,7 @@ const ALLOWED_MIME_TYPES = new Set([
   "application/octet-stream",
 ]);
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
 export async function POST(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
   if (fileSize > MAX_FILE_SIZE) {
-    return NextResponse.json({ error: "File too large. Max 50MB." }, { status: 400 });
+    return NextResponse.json({ error: "File too large. Max 100MB." }, { status: 400 });
   }
   if (!ALLOWED_MIME_TYPES.has(fileType)) {
     return NextResponse.json({ error: "File type not allowed." }, { status: 400 });
