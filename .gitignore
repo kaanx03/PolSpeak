@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Windows reserved names
 nul
+
+# Claude Code local settings
+.claude/
