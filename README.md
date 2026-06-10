@@ -6,9 +6,9 @@ A web-based management platform for private English language tutors. Manage stud
 
 ## Screenshots
 
-| Schedule | Students |
+| Schedule | Student Page |
 |---|---|
-| ![Schedule](public/readme-images/schedule.png) | ![Students](public/readme-images/studentpage.png) |
+| ![Schedule](public/readme-images/schedule.png) | ![Student Page](public/readme-images/studentpage.png) |
 
 | Lesson Editor | Library |
 |---|---|
